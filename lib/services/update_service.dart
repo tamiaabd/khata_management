@@ -73,7 +73,10 @@ class UpdateService {
     );
   }
 
-  Future<bool> downloadAndInstall(UpdateInfo info) async {
+  Future<bool> downloadAndInstall(
+    UpdateInfo info, {
+    ValueChanged<double>? onProgress,
+  }) async {
     if (kIsWeb) return false;
 
     if (defaultTargetPlatform != TargetPlatform.windows &&
@@ -82,7 +85,10 @@ class UpdateService {
       return launchUrl(uri, mode: LaunchMode.externalApplication);
     }
 
-    final file = await _downloadAsset(info.updateUrl);
+    final file = await _downloadAsset(
+      info.updateUrl,
+      onProgress: onProgress,
+    );
     if (file == null) {
       return false;
     }
@@ -106,17 +112,36 @@ class UpdateService {
     return null;
   }
 
-  Future<File?> _downloadAsset(String url) async {
+  Future<File?> _downloadAsset(
+    String url, {
+    ValueChanged<double>? onProgress,
+  }) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
-    final response = await http.get(uri);
-    if (response.statusCode != 200) return null;
+    final request = http.Request('GET', uri);
+    final streamResponse = await request.send();
+    if (streamResponse.statusCode != 200) return null;
 
     final tempDir = await getTemporaryDirectory();
     final fileName = _resolveFileName(uri);
     final filePath = path.join(tempDir.path, fileName);
     final file = File(filePath);
-    await file.writeAsBytes(response.bodyBytes, flush: true);
+    final sink = file.openWrite();
+    final total = streamResponse.contentLength ?? 0;
+    var received = 0;
+
+    await for (final chunk in streamResponse.stream) {
+      received += chunk.length;
+      sink.add(chunk);
+      if (total > 0) {
+        onProgress?.call((received / total).clamp(0.0, 1.0));
+      }
+    }
+    await sink.flush();
+    await sink.close();
+    if (total <= 0) {
+      onProgress?.call(1.0);
+    }
     return file;
   }
 

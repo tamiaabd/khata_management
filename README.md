@@ -21,6 +21,7 @@ samples, guidance on mobile development, and a full API reference.
 This project includes GitHub-based auto update support:
 
 - On every push to `main`, GitHub Actions builds:
+- On every push to `main` or `master`, GitHub Actions builds:
   - Windows `.msix`
   - Android `.apk`
 - A GitHub Release is automatically created with tag format:
@@ -33,3 +34,16 @@ This project includes GitHub-based auto update support:
 ### Windows MSIX note
 
 For production MSIX distribution, configure proper code-signing certificate settings in `msix_config` and GitHub secrets (if required by your distribution policy).
+
+### Why GitHub Actions may not run
+
+- The workflow file must be pushed to the same branch you are pushing code to.
+- Your branch name must match workflow trigger (`main` or `master`).
+- Repository Actions must be enabled in GitHub settings.
+
+### Where builds are available
+
+- **Actions tab**:
+  - Open a workflow run, then download artifacts (`windows-msix`, `android-apk`).
+- **Releases tab**:
+  - Open latest auto release, download `.msix` / `.apk` assets directly.

@@ -16,6 +16,8 @@ abstract final class AppUpdateConfig {
   // Update these values to match your GitHub repository.
   static const String repoOwner = 'tamiaabd';
   static const String repoName = 'khata_management';
+  // If true, users cannot skip app startup update dialog.
+  static const bool forceUpdate = false;
 }
 
 abstract final class LedgerLayout {

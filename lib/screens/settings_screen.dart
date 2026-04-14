@@ -226,11 +226,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (shouldUpdate != true || !context.mounted) return;
-    final started = await _updateService.downloadAndInstall(info);
+    final started = await _runUpdateWithProgress(info);
     if (!context.mounted || started) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Could not start update installer.')),
     );
+  }
+
+  Future<bool> _runUpdateWithProgress(UpdateInfo info) async {
+    final progress = ValueNotifier<double>(0);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Downloading update'),
+          content: ValueListenableBuilder<double>(
+            valueListenable: progress,
+            builder: (context, value, _) {
+              final percent = (value * 100).toStringAsFixed(0);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(value: value > 0 ? value : null),
+                  const SizedBox(height: 12),
+                  Text('Progress: $percent%'),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    final started = await _updateService.downloadAndInstall(
+      info,
+      onProgress: (value) => progress.value = value,
+    );
+    if (!mounted) return started;
+    Navigator.of(context, rootNavigator: true).pop();
+    progress.dispose();
+    return started;
   }
 }
 
