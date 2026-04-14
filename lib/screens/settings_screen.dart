@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../database/app_database.dart';
 import '../providers/settings_provider.dart';
+import '../services/update_service.dart';
 import '../utils/constants.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const int _companyId = 1;
+  final _updateService = UpdateService();
 
   static const List<String> _urduFonts = [
     'JameelNooriNastaleeq',
@@ -110,6 +112,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           options: _englishFonts,
                           onChanged: settings.setEnglishFont,
                         ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => _checkForUpdatesManually(context),
+                            icon: const Icon(Icons.system_update_alt),
+                            label: const Text('Check for Updates'),
+                          ),
+                        ),
                         const SizedBox(height: 32),
                         SizedBox(
                           width: double.infinity,
@@ -182,6 +193,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+
+  Future<void> _checkForUpdatesManually(BuildContext context) async {
+    final info = await _updateService.checkForUpdate();
+    if (!context.mounted) return;
+
+    if (info == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You already have the latest version.')),
+      );
+      return;
+    }
+
+    final shouldUpdate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update available'),
+        content: Text(
+          'Current: ${info.currentVersion}+${info.currentBuild}\nLatest: ${info.latestVersion}+${info.latestBuild}\n\nDo you want to download and install the latest version?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Update now'),
+          ),
+        ],
+      ),
+    );
+    if (shouldUpdate != true || !context.mounted) return;
+    final started = await _updateService.downloadAndInstall(info);
+    if (!context.mounted || started) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not start update installer.')),
+    );
   }
 }
 

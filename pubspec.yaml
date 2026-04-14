@@ -20,6 +20,10 @@ dependencies:
   intl: ^0.20.2
   provider: ^6.1.2
   google_fonts: ^6.2.1
+  http: ^1.5.0
+  open_filex: ^4.7.0
+  package_info_plus: ^9.0.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +31,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.23.1
   build_runner: ^2.4.15
+  msix: ^3.16.9
 
 flutter:
   uses-material-design: true
@@ -40,3 +45,10 @@ flutter:
     - family: JameelNooriNastaleeq
       fonts:
         - asset: assets/fonts/JameelNooriNastaleeq.ttf
+
+msix_config:
+  display_name: Virtual Manager
+  publisher_display_name: Saari Technologies
+  identity_name: com.saaritech.khata.management
+  msix_version: 1.0.0.0
+  capabilities: internetClient

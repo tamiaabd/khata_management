@@ -12,6 +12,12 @@ abstract final class AppColors {
   static const Color delete = Color(0xFFDC2626);
 }
 
+abstract final class AppUpdateConfig {
+  // Update these values to match your GitHub repository.
+  static const String repoOwner = 'tamiaabd';
+  static const String repoName = 'khata_management';
+}
+
 abstract final class LedgerLayout {
   static const double headerFontSize = 20;
   static const double tableHeaderFontSize = 13;

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../database/app_database.dart';
 import '../providers/settings_provider.dart';
 import '../services/pdf_service.dart';
+import '../services/update_service.dart';
 import '../utils/constants.dart';
 
 import '../widgets/ledger_table.dart';
@@ -22,12 +23,49 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const int _companyId = 1;
   final _scroll = ScrollController();
+  final _updateService = UpdateService();
   int? _partyFocusEntryId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdates());
+  }
 
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkForUpdates() async {
+    final info = await _updateService.checkForUpdate();
+    if (!mounted || info == null) return;
+    final shouldUpdate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update available'),
+        content: Text(
+          'Current: ${info.currentVersion}+${info.currentBuild}\nLatest: ${info.latestVersion}+${info.latestBuild}\n\nDo you want to download and install the latest version?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Update now'),
+          ),
+        ],
+      ),
+    );
+    if (shouldUpdate != true) return;
+    final started = await _updateService.downloadAndInstall(info);
+    if (!mounted || started) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not start update installer.')),
+    );
   }
 
   LedgerTotals _totals(List<LedgerEntry> entries) {

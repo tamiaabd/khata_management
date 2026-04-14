@@ -15,3 +15,21 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Auto Update Pipeline
+
+This project includes GitHub-based auto update support:
+
+- On every push to `main`, GitHub Actions builds:
+  - Windows `.msix`
+  - Android `.apk`
+- A GitHub Release is automatically created with tag format:
+  - `v<app-version>+<github-run-number>`
+- The app checks GitHub `releases/latest` and shows an update dialog when a newer release is available.
+- When user clicks update:
+  - Windows: download `.msix` and open installer
+  - Android: download `.apk` and open package installer
+
+### Windows MSIX note
+
+For production MSIX distribution, configure proper code-signing certificate settings in `msix_config` and GitHub secrets (if required by your distribution policy).
