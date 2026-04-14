@@ -1,0 +1,341 @@
+import 'dart:math' as math;
+
+import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../database/app_database.dart';
+import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  static const int _companyId = 1;
+
+  static const List<String> _urduFonts = [
+    'JameelNooriNastaleeq',
+    'NotoNastaliqUrdu',
+  ];
+
+  static const List<String> _englishFonts = [
+    'Poppins',
+    'Roboto',
+    'Open Sans',
+    'Inter',
+    'Lato',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final db = context.read<AppDatabase>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final pad = LedgerLayout.viewportHorizontalPadding(
+            constraints.maxWidth,
+          );
+          final maxContent = math.min(
+            560.0,
+            (constraints.maxWidth - 2 * pad).clamp(0.0, double.infinity),
+          );
+          final settings = context.watch<SettingsProvider>();
+
+          return Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: pad),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxContent),
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        children: [
+                        Text(
+                          'Company',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        StreamBuilder<Company>(
+                          stream: (db.select(db.companies)
+                                ..where((t) => t.id.equals(_companyId)))
+                              .watchSingle(),
+                          builder: (context, snap) {
+                            final name = snap.data?.companyName ?? '';
+                            return _CompanyNameCard(
+                              name: name,
+                              onSave: (newName) async {
+                                await (db.update(db.companies)
+                                      ..where((t) => t.id.equals(_companyId)))
+                                    .write(
+                                  CompaniesCompanion(
+                                    companyName: Value(newName),
+                                    updatedAt: Value(DateTime.now()),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Fonts',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        _FontCard(
+                          label: 'Urdu Font',
+                          value: settings.urduFont,
+                          options: _urduFonts,
+                          onChanged: settings.setUrduFont,
+                        ),
+                        const SizedBox(height: 12),
+                        _FontCard(
+                          label: 'English Font',
+                          value: settings.englishFont,
+                          options: _englishFonts,
+                          onChanged: settings.setEnglishFont,
+                        ),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.delete,
+                              side: const BorderSide(color: AppColors.delete),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () => _confirmReset(context, db),
+                            icon: const Icon(Icons.delete_forever_outlined),
+                            label: const Text('Reset All Data'),
+                          ),
+                        ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(bottom: math.max(16.0, pad + 8)),
+                child: const Center(
+                  child: Text(
+                    'Created by Saari Technologies',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmReset(BuildContext context, AppDatabase db) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Reset all data?'),
+        content: const Text(
+          'This will permanently delete every row in the ledger. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.delete),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await db.ledgerDao.deleteAllEntriesForCompany(_companyId);
+      await db.companyDao.touchCompanyUpdatedAt(_companyId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All ledger data has been reset.')),
+        );
+      }
+    }
+  }
+}
+
+class _CompanyNameCard extends StatefulWidget {
+  const _CompanyNameCard({required this.name, required this.onSave});
+
+  final String name;
+  final ValueChanged<String> onSave;
+
+  @override
+  State<_CompanyNameCard> createState() => _CompanyNameCardState();
+}
+
+class _CompanyNameCardState extends State<_CompanyNameCard> {
+  late final TextEditingController _controller;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.name);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CompanyNameCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.name != widget.name && !_isEditing) {
+      _controller.text = widget.name;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty) {
+      widget.onSave(text);
+    }
+    setState(() => _isEditing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.gridLine),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: _isEditing
+                  ? TextField(
+                      controller: _controller,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Company name',
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _save(),
+                    )
+                  : Text(
+                      widget.name.isEmpty ? 'Company name' : widget.name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+            _isEditing
+                ? IconButton(
+                    icon: const Icon(Icons.check, color: AppColors.primary),
+                    onPressed: _save,
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.edit, color: AppColors.textSecondary),
+                    onPressed: () => setState(() => _isEditing = true),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FontCard extends StatelessWidget {
+  const _FontCard({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.gridLine),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: value,
+                borderRadius: BorderRadius.circular(8),
+                focusColor: Colors.transparent,
+                items: options.map((font) {
+                  return DropdownMenuItem<String>(
+                    value: font,
+                    child: Text(
+                      font,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (font) {
+                  if (font != null) {
+                    onChanged(font);
+                    FocusManager.instance.primaryFocus?.unfocus();
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

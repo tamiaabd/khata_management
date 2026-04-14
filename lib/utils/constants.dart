@@ -1,0 +1,137 @@
+import 'package:flutter/material.dart';
+
+abstract final class AppColors {
+  static const Color primary = Color(0xFF2D5A5A);
+  static const Color primaryLight = Color(0xFFE8F0F0);
+  static const Color background = Color(0xFFF8F9FA);
+  static const Color paper = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF1A1A1A);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color gridLine = Color(0xFFE5E7EB);
+  static const Color gridLineLight = Color(0xFFF3F4F6);
+  static const Color delete = Color(0xFFDC2626);
+}
+
+abstract final class LedgerLayout {
+  static const double headerFontSize = 20;
+  static const double tableHeaderFontSize = 13;
+  static const double tableBodyFontSize = 14;
+  static const double summaryFontSize = 15;
+  static const double partyNameFontSize = 22;
+
+  // A4 dimensions in logical pixels (matches 96-DPI A4). Used as the fixed
+  // layout width for the ledger UI and PDF; on-screen scaling preserves this aspect.
+  static const double a4Width = 794;
+  static const double a4Height = 1123;
+
+  /// Horizontal padding for shell chrome from view width (narrower on phones).
+  static double viewportHorizontalPadding(double width) {
+    if (width < 360) return 8;
+    if (width < 600) return 12;
+    return 16;
+  }
+
+  // Heights used for both UI preview and PDF pagination.
+  static const double pageHeaderHeight = 36;
+  static const double tableHeaderHeight = 44;
+  static const double rowHeight = 52;
+  static const double summaryFooterHeight = 60;
+  static const double sheetPadding = 32; // top+bottom padding inside paper
+
+  // Column widths (shared between UI and PDF).
+  static const double colSerialFixed = 44;
+  static const double colActionFixed = 44;
+  static const int colPartyFlex = 3;
+  static const int colValueFlex = 2;
+
+  /// UI logical pixels are 96-DPI; PDF points are 72-DPI.
+  static const double ptPerPx = 72.0 / 96.0; // 0.75
+
+  /// How many rows fit on a full page (no summary).
+  static int fullPageRows() {
+    final avail =
+        a4Height - sheetPadding - pageHeaderHeight - tableHeaderHeight;
+    return (avail / rowHeight).floor().clamp(1, 999);
+  }
+
+  /// How many rows fit on the last page (with summary footer).
+  static int lastPageRows() {
+    final avail =
+        a4Height -
+        sheetPadding -
+        pageHeaderHeight -
+        tableHeaderHeight -
+        summaryFooterHeight;
+    return (avail / rowHeight).floor().clamp(1, 999);
+  }
+
+  /// Paginate entries into full pages and one last page.
+  static List<List<T>> paginate<T>(List<T> entries) {
+    if (entries.isEmpty) return [[]];
+    final fullMax = fullPageRows();
+    final lastMax = lastPageRows();
+    final pages = <List<T>>[];
+    var i = 0;
+    while (i < entries.length) {
+      final remaining = entries.length - i;
+      if (remaining <= lastMax) {
+        pages.add(entries.sublist(i));
+        break;
+      }
+      if (remaining > fullMax) {
+        pages.add(entries.sublist(i, i + fullMax));
+        i += fullMax;
+        continue;
+      }
+      final take = remaining - lastMax;
+      pages.add(entries.sublist(i, i + take));
+      i += take;
+    }
+    return pages;
+  }
+
+  // ── PDF pagination (same logic, but everything already in points) ──
+
+  static int pdfFullPageRows() {
+    final avail =
+        (a4Height * ptPerPx) -
+        (sheetPadding * ptPerPx) -
+        (pageHeaderHeight * ptPerPx) -
+        (tableHeaderHeight * ptPerPx);
+    return (avail / (rowHeight * ptPerPx)).floor().clamp(1, 999);
+  }
+
+  static int pdfLastPageRows() {
+    final avail =
+        (a4Height * ptPerPx) -
+        (sheetPadding * ptPerPx) -
+        (pageHeaderHeight * ptPerPx) -
+        (tableHeaderHeight * ptPerPx) -
+        (summaryFooterHeight * ptPerPx);
+    return (avail / (rowHeight * ptPerPx)).floor().clamp(1, 999);
+  }
+
+  static List<List<T>> paginatePdf<T>(List<T> entries) {
+    if (entries.isEmpty) return [[]];
+    final fullMax = pdfFullPageRows();
+    final lastMax = pdfLastPageRows();
+    final pages = <List<T>>[];
+    var i = 0;
+    while (i < entries.length) {
+      final remaining = entries.length - i;
+      if (remaining <= lastMax) {
+        pages.add(entries.sublist(i));
+        break;
+      }
+      if (remaining > fullMax) {
+        pages.add(entries.sublist(i, i + fullMax));
+        i += fullMax;
+        continue;
+      }
+      final take = remaining - lastMax;
+      pages.add(entries.sublist(i, i + take));
+      i += take;
+    }
+    return pages;
+  }
+}
