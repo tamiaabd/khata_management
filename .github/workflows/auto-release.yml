@@ -39,7 +39,7 @@ jobs:
       - name: Create MSIX package
         shell: bash
         run: |
-          dart run msix:create
+          dart run msix:create --install-certificate false
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v4

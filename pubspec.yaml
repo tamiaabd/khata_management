@@ -52,3 +52,4 @@ msix_config:
   identity_name: com.saaritech.khata.management
   msix_version: 1.1.0.0
   capabilities: internetClient
+  install_certificate: false
