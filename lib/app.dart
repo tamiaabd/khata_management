@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'database/app_database.dart';
 import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 
 class KhataApp extends StatelessWidget {
@@ -28,7 +29,7 @@ class KhataApp extends StatelessWidget {
               urduFont: settings.urduFont,
               englishFont: settings.englishFont,
             ),
-            home: const HomeScreen(),
+            home: const SplashScreen(child: HomeScreen()),
           );
         },
       ),

@@ -28,10 +28,30 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  Future<UpdateInfo?> checkForUpdate() async {
+  Future<({String version, String build})> resolveCurrentVersion() async {
     final package = await PackageInfo.fromPlatform();
-    final currentVersion = package.version;
-    final currentBuild = package.buildNumber;
+    const buildName = String.fromEnvironment('FLUTTER_BUILD_NAME');
+    const buildNumber = String.fromEnvironment('FLUTTER_BUILD_NUMBER');
+
+    if (buildName.isNotEmpty) {
+      return (
+        version: buildName,
+        build: buildNumber.isNotEmpty ? buildNumber : package.buildNumber,
+      );
+    }
+
+    final fromPubspec = await _readDebugPubspecVersion();
+    if (fromPubspec != null) {
+      return fromPubspec;
+    }
+
+    return (version: package.version, build: package.buildNumber);
+  }
+
+  Future<UpdateInfo?> checkForUpdate() async {
+    final current = await resolveCurrentVersion();
+    final currentVersion = current.version;
+    final currentBuild = current.build;
     final uri = Uri.https(
       'api.github.com',
       '/repos/${AppUpdateConfig.repoOwner}/${AppUpdateConfig.repoName}/releases/latest',
@@ -214,5 +234,27 @@ class UpdateService {
     final parts = normalized.split('+');
     if (parts.length < 2) return '0';
     return parts[1];
+  }
+
+  Future<({String version, String build})?> _readDebugPubspecVersion() async {
+    if (!kDebugMode) return null;
+    try {
+      final file = File('pubspec.yaml');
+      if (!await file.exists()) return null;
+      final content = await file.readAsString();
+      final match = RegExp(
+        r'^\s*version\s*:\s*([^\s#]+)\s*$',
+        multiLine: true,
+      ).firstMatch(content);
+      final raw = match?.group(1)?.trim();
+      if (raw == null || raw.isEmpty) return null;
+      final parts = raw.split('+');
+      return (
+        version: parts.first,
+        build: parts.length > 1 ? parts[1] : '0',
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

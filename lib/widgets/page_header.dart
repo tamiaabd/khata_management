@@ -52,9 +52,9 @@ class PageHeader extends StatelessWidget {
                     fontSize: LedgerLayout.headerFontSize,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
-                    fontFamilyFallback: [
-                      context.select<SettingsProvider, String>((s) => s.urduFont),
-                    ],
+                    fontFamily: context.select<SettingsProvider, String>(
+                      (s) => s.englishFont,
+                    ),
                   ),
                 ),
               ),

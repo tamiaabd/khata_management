@@ -24,125 +24,113 @@ class LedgerTableHeaderRow extends StatefulWidget {
 }
 
 class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
-  late final TextEditingController _partyLabel;
   late final TextEditingController _v1Label;
   late final TextEditingController _v2Label;
   late final TextEditingController _v3Label;
-  late final TextEditingController _pendingLabel;
 
-  late final FocusNode _focusPartyLabel;
   late final FocusNode _focusV1Label;
   late final FocusNode _focusV2Label;
   late final FocusNode _focusV3Label;
-  late final FocusNode _focusPendingLabel;
 
   @override
   void initState() {
     super.initState();
     final p = context.read<SettingsProvider>();
-    _partyLabel = TextEditingController(text: p.partyLabel);
     _v1Label = TextEditingController(text: p.value1Label);
     _v2Label = TextEditingController(text: p.value2Label);
     _v3Label = TextEditingController(text: p.value3Label);
-    _pendingLabel = TextEditingController(text: p.pendingLabel);
-    _focusPartyLabel = FocusNode(debugLabel: 'headerParty');
     _focusV1Label = FocusNode(debugLabel: 'headerV1');
     _focusV2Label = FocusNode(debugLabel: 'headerV2');
     _focusV3Label = FocusNode(debugLabel: 'headerV3');
-    _focusPendingLabel = FocusNode(debugLabel: 'headerPending');
   }
 
   @override
   void dispose() {
-    _partyLabel.dispose();
     _v1Label.dispose();
     _v2Label.dispose();
     _v3Label.dispose();
-    _pendingLabel.dispose();
-    _focusPartyLabel.dispose();
     _focusV1Label.dispose();
     _focusV2Label.dispose();
     _focusV3Label.dispose();
-    _focusPendingLabel.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.read<SettingsProvider>();
-    return Container(
-      color: AppColors.primaryLight,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _wSerial,
-            child: Text(
-              '#',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: LedgerLayout.tableHeaderFontSize,
-                color: AppColors.primary,
+    return SizedBox(
+      height: LedgerLayout.tableHeaderHeight,
+      child: Container(
+        color: AppColors.primaryLight,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: _wSerial,
+              child: Text(
+                '#',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: LedgerLayout.tableHeaderFontSize,
+                  color: AppColors.primary,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
-          Expanded(
-            flex: _flexParty,
-            child: _HeaderField(
-              controller: _partyLabel,
-              focusNode: _focusPartyLabel,
-              textInputAction: TextInputAction.next,
-              onEditingComplete: () => _focusV1Label.requestFocus(),
-              onChanged: settings.setPartyLabel,
+            Expanded(
+              flex: _flexParty,
+              child: const _StaticUrduHeaderText(
+                text: LedgerLayout.partyHeaderText,
+                fontFamily: 'BombayBlackUnicode',
+                fontSize: LedgerLayout.partyHeaderFontSize,
+                contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
+              ),
             ),
-          ),
-          Expanded(
-            flex: _flexNum,
-            child: _HeaderField(
-              controller: _v1Label,
-              align: TextAlign.right,
-              focusNode: _focusV1Label,
-              textInputAction: TextInputAction.next,
-              onEditingComplete: () => _focusV2Label.requestFocus(),
-              onChanged: settings.setValue1Label,
+            Expanded(
+              flex: _flexNum,
+              child: _HeaderField(
+                controller: _v1Label,
+                align: TextAlign.right,
+                focusNode: _focusV1Label,
+                textInputAction: TextInputAction.next,
+                onEditingComplete: () => _focusV2Label.requestFocus(),
+                onChanged: settings.setValue1Label,
+              ),
             ),
-          ),
-          Expanded(
-            flex: _flexNum,
-            child: _HeaderField(
-              controller: _v2Label,
-              align: TextAlign.right,
-              focusNode: _focusV2Label,
-              textInputAction: TextInputAction.next,
-              onEditingComplete: () => _focusV3Label.requestFocus(),
-              onChanged: settings.setValue2Label,
+            Expanded(
+              flex: _flexNum,
+              child: _HeaderField(
+                controller: _v2Label,
+                align: TextAlign.right,
+                focusNode: _focusV2Label,
+                textInputAction: TextInputAction.next,
+                onEditingComplete: () => _focusV3Label.requestFocus(),
+                onChanged: settings.setValue2Label,
+              ),
             ),
-          ),
-          Expanded(
-            flex: _flexNum,
-            child: _HeaderField(
-              controller: _v3Label,
-              align: TextAlign.right,
-              focusNode: _focusV3Label,
-              textInputAction: TextInputAction.next,
-              onEditingComplete: () => _focusPendingLabel.requestFocus(),
-              onChanged: settings.setValue3Label,
+            Expanded(
+              flex: _flexNum,
+              child: _HeaderField(
+                controller: _v3Label,
+                align: TextAlign.right,
+                focusNode: _focusV3Label,
+                textInputAction: TextInputAction.done,
+                onEditingComplete: () => _focusV3Label.unfocus(),
+                onChanged: settings.setValue3Label,
+              ),
             ),
-          ),
-          Expanded(
-            flex: _flexNum,
-            child: _HeaderField(
-              controller: _pendingLabel,
-              align: TextAlign.right,
-              focusNode: _focusPendingLabel,
-              textInputAction: TextInputAction.done,
-              onEditingComplete: () => _focusPendingLabel.unfocus(),
-              onChanged: settings.setPendingLabel,
+            Expanded(
+              flex: _flexNum,
+              child: const _StaticUrduHeaderText(
+                text: LedgerLayout.pendingHeaderText,
+                fontFamily: 'BombayBlackUnicode',
+                fontSize: LedgerLayout.pendingHeaderFontSize,
+                contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
+              ),
             ),
-          ),
-          const SizedBox(width: _wAction),
-        ],
+            const SizedBox(width: _wAction),
+          ],
+        ),
       ),
     );
   }
@@ -151,7 +139,7 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
 class _HeaderField extends StatelessWidget {
   const _HeaderField({
     required this.controller,
-    this.align = TextAlign.left,
+    this.align = TextAlign.right,
     this.focusNode,
     this.textInputAction = TextInputAction.next,
     this.onEditingComplete,
@@ -173,7 +161,7 @@ class _HeaderField extends StatelessWidget {
       textAlign: align,
       textInputAction: textInputAction,
       onEditingComplete: onEditingComplete,
-      style: const TextStyle(
+      style: TextStyle(
         fontWeight: FontWeight.w600,
         fontSize: LedgerLayout.tableHeaderFontSize,
         color: AppColors.textPrimary,
@@ -184,6 +172,48 @@ class _HeaderField extends StatelessWidget {
         contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       ),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _StaticUrduHeaderText extends StatelessWidget {
+  const _StaticUrduHeaderText({
+    required this.text,
+    required this.fontFamily,
+    required this.fontSize,
+    this.contentPadding = const EdgeInsets.fromLTRB(4, 2, 4, 8),
+  });
+
+  final String text;
+  final String fontFamily;
+  final double fontSize;
+  final EdgeInsets contentPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: contentPadding,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Text(
+          text,
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: fontSize,
+            fontFamily: fontFamily,
+            color: AppColors.textPrimary,
+            height: 1.0,
+          ),
+          strutStyle: StrutStyle(
+            fontSize: fontSize,
+            height: 1.0,
+            forceStrutHeight: true,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -223,10 +253,7 @@ class _LedgerTableState extends State<LedgerTable> {
   }
 
   /// Same ids in the same order — skip focus-node map work on every stream tick.
-  static bool _sameEntryIdSequence(
-    List<LedgerEntry> a,
-    List<LedgerEntry> b,
-  ) {
+  static bool _sameEntryIdSequence(List<LedgerEntry> a, List<LedgerEntry> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i].id != b[i].id) return false;
@@ -335,8 +362,11 @@ class _LedgerRowState extends State<_LedgerRow> {
   final _v3Focus = FocusNode();
   final _pendingFocus = FocusNode();
   late final FocusNode _deleteFocus;
+
   /// Coalesces DB writes; avoids overlapping [replace] calls with stale [widget.entry] snapshots.
-  final _persistDebouncer = Debouncer(duration: const Duration(milliseconds: 300));
+  final _persistDebouncer = Debouncer(
+    duration: const Duration(milliseconds: 300),
+  );
 
   @override
   void initState() {
@@ -452,8 +482,21 @@ class _LedgerRowState extends State<_LedgerRow> {
 
   @override
   Widget build(BuildContext context) {
-    final urduFont = context.select<SettingsProvider, String>((s) => s.urduFont);
+    final urduFont = context.select<SettingsProvider, String>(
+      (s) => s.urduFont,
+    );
     final dir = directionForMixedText(_party.text);
+    final englishPartyStyle =
+        Theme.of(context).textTheme.bodyLarge?.copyWith(
+          fontSize: LedgerLayout.partyNameFontSize,
+          height: 1,
+          color: AppColors.textPrimary,
+        ) ??
+        const TextStyle(
+          fontSize: LedgerLayout.partyNameFontSize,
+          height: 1,
+          color: AppColors.textPrimary,
+        );
     return Container(
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.gridLine)),
@@ -464,113 +507,121 @@ class _LedgerRowState extends State<_LedgerRow> {
           onLongPress: _confirmDelete,
           hoverColor: AppColors.gridLineLight.withValues(alpha: 0.5),
           splashColor: AppColors.primaryLight.withValues(alpha: 0.3),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: _wSerial,
-                  child: Text(
-                    '${widget.entry.serialNumber}',
-                    textAlign: TextAlign.center,
-                    textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                      fontSize: LedgerLayout.tableBodyFontSize,
-                      color: AppColors.textSecondary,
+          child: SizedBox(
+            height: LedgerLayout.rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: _wSerial,
+                    child: Text(
+                      '${widget.entry.serialNumber}',
+                      textAlign: TextAlign.center,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: LedgerLayout.tableBodyFontSize,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  flex: _flexParty,
-                  child: Directionality(
-                    textDirection: dir,
-                    child: TextField(
-                      controller: _party,
-                      focusNode: widget.partyFocus,
-                      maxLines: 1,
-                      textInputAction: TextInputAction.next,
-                      onEditingComplete: () => _v1Focus.requestFocus(),
-                      style: TextStyle(
-                        fontSize: LedgerLayout.partyNameFontSize,
-                        fontFamilyFallback: [urduFont],
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 8,
+                  Expanded(
+                    flex: _flexParty,
+                    child: Directionality(
+                      textDirection: dir,
+                      child: TextField(
+                        controller: _party,
+                        focusNode: widget.partyFocus,
+                        minLines: 1,
+                        maxLines: 1,
+                        textInputAction: TextInputAction.next,
+                        onEditingComplete: () => _v1Focus.requestFocus(),
+                        style: dir == TextDirection.rtl
+                            ? TextStyle(
+                                fontSize: LedgerLayout.partyNameFontSize,
+                                fontFamily: urduFont,
+                                height: 1,
+                                color: AppColors.textPrimary,
+                              )
+                            : englishPartyStyle,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 0,
+                          ),
                         ),
+                        onChanged: (_) {
+                          setState(() {});
+                          _schedulePersist();
+                        },
                       ),
-                      onChanged: (_) {
-                        setState(() {});
-                        _schedulePersist();
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v1Focus,
+                      controller: _v1,
+                      onEditingComplete: () => _v2Focus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v2Focus,
+                      controller: _v2,
+                      onEditingComplete: () => _v3Focus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v3Focus,
+                      controller: _v3,
+                      onEditingComplete: () => _pendingFocus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _pendingFocus,
+                      controller: _pending,
+                      textInputAction: widget.nextPartyFocus != null
+                          ? TextInputAction.next
+                          : TextInputAction.done,
+                      onEditingComplete: () {
+                        final next = widget.nextPartyFocus;
+                        if (next != null) {
+                          next.requestFocus();
+                        } else {
+                          _pendingFocus.unfocus();
+                        }
                       },
+                      onChanged: (_) => _schedulePersist(),
                     ),
                   ),
-                ),
-                Expanded(
-                  flex: _flexNum,
-                  child: NumericLedgerField(
-                    focusNode: _v1Focus,
-                    controller: _v1,
-                    onEditingComplete: () => _v2Focus.requestFocus(),
-                    onChanged: (_) => _schedulePersist(),
-                  ),
-                ),
-                Expanded(
-                  flex: _flexNum,
-                  child: NumericLedgerField(
-                    focusNode: _v2Focus,
-                    controller: _v2,
-                    onEditingComplete: () => _v3Focus.requestFocus(),
-                    onChanged: (_) => _schedulePersist(),
-                  ),
-                ),
-                Expanded(
-                  flex: _flexNum,
-                  child: NumericLedgerField(
-                    focusNode: _v3Focus,
-                    controller: _v3,
-                    onEditingComplete: () => _pendingFocus.requestFocus(),
-                    onChanged: (_) => _schedulePersist(),
-                  ),
-                ),
-                Expanded(
-                  flex: _flexNum,
-                  child: NumericLedgerField(
-                    focusNode: _pendingFocus,
-                    controller: _pending,
-                    textInputAction: widget.nextPartyFocus != null
-                        ? TextInputAction.next
-                        : TextInputAction.done,
-                    onEditingComplete: () {
-                      final next = widget.nextPartyFocus;
-                      if (next != null) {
-                        next.requestFocus();
-                      } else {
-                        _pendingFocus.unfocus();
-                      }
-                    },
-                    onChanged: (_) => _schedulePersist(),
-                  ),
-                ),
-                SizedBox(
-                  width: _wAction,
-                  child: IconButton(
-                    focusNode: _deleteFocus,
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Delete row',
-                    onPressed: _confirmDelete,
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.delete,
-                      size: 20,
+                  SizedBox(
+                    width: _wAction,
+                    child: IconButton(
+                      focusNode: _deleteFocus,
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Delete row',
+                      onPressed: _confirmDelete,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.delete,
+                        size: 20,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

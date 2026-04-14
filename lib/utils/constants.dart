@@ -25,7 +25,12 @@ abstract final class LedgerLayout {
   static const double tableHeaderFontSize = 13;
   static const double tableBodyFontSize = 14;
   static const double summaryFontSize = 15;
-  static const double partyNameFontSize = 22;
+  // Single source of truth for Urdu sizing (UI + PDF sync).
+  static const double partyNameFontSize = 26;
+  static const double partyHeaderFontSize = 26;
+  static const double pendingHeaderFontSize = 26;
+  static const String partyHeaderText = 'دوکاندار';
+  static const String pendingHeaderText = 'بقایا رقم';
 
   // A4 dimensions in logical pixels (matches 96-DPI A4). Used as the fixed
   // layout width for the ledger UI and PDF; on-screen scaling preserves this aspect.

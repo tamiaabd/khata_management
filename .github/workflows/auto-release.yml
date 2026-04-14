@@ -13,6 +13,8 @@ permissions:
 jobs:
   build_windows_msix:
     runs-on: windows-latest
+    env:
+      CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,16 +38,65 @@ jobs:
           flutter config --enable-windows-desktop
           flutter build windows --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}"
 
+      - name: Decode signing certificate files
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.WIN_CERT_PFX_BASE64 }}")) {
+            throw "Missing secret WIN_CERT_PFX_BASE64"
+          }
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.WIN_CERT_CER_BASE64 }}")) {
+            throw "Missing secret WIN_CERT_CER_BASE64"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:CERT_PASSWORD)) {
+            throw "Missing secret WIN_CERT_PASSWORD"
+          }
+          New-Item -Path "certs" -ItemType Directory -Force | Out-Null
+          [IO.File]::WriteAllBytes(
+            "certs/signing_cert.pfx",
+            [Convert]::FromBase64String("${{ secrets.WIN_CERT_PFX_BASE64 }}")
+          )
+          [IO.File]::WriteAllBytes(
+            "certs/signing_cert.cer",
+            [Convert]::FromBase64String("${{ secrets.WIN_CERT_CER_BASE64 }}")
+          )
+
       - name: Create MSIX package
         shell: bash
         run: |
-          dart run msix:create --install-certificate false
+          dart run msix:create \
+            --install-certificate false \
+            --certificate-path "$GITHUB_WORKSPACE/certs/signing_cert.pfx" \
+            --certificate-password "$CERT_PASSWORD"
+
+      - name: Install 7-Zip
+        shell: pwsh
+        run: choco install 7zip -y
+
+      - name: Build windows installer bundle (msix + cert + bat)
+        shell: pwsh
+        run: |
+          $msix = Get-ChildItem -Path "build/windows" -Recurse -Filter *.msix | Select-Object -First 1
+          if (-not $msix) {
+            throw "MSIX file not found."
+          }
+          New-Item -Path "dist/windows_bundle" -ItemType Directory -Force | Out-Null
+          Copy-Item $msix.FullName "dist/windows_bundle/KhataManagement.msix"
+          Copy-Item "certs/signing_cert.cer" "dist/windows_bundle/KhataManagement.cer"
+          Copy-Item ".github/windows-installer/install_msix.bat" "dist/windows_bundle/install_msix.bat"
+          & "C:\Program Files\7-Zip\7z.exe" a "dist/khata_windows_bundle.rar" "dist/windows_bundle/*"
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-msix
           path: build/windows/**/*.msix
+          if-no-files-found: error
+
+      - name: Upload windows rar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-rar-bundle
+          path: dist/khata_windows_bundle.rar
           if-no-files-found: error
 
   build_android_apk:
@@ -102,6 +153,12 @@ jobs:
           name: android-apk
           path: dist/android
 
+      - name: Download windows rar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-rar-bundle
+          path: dist/windows-rar
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -111,3 +168,4 @@ jobs:
           files: |
             dist/windows/**/*.msix
             dist/android/**/*.apk
+            dist/windows-rar/**/*.rar

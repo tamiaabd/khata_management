@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../database/app_database.dart';
@@ -21,8 +22,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _updateService = UpdateService();
 
   static const List<String> _urduFonts = [
+    'BombayBlackUnicode',
     'JameelNooriNastaleeq',
-    'NotoNastaliqUrdu',
+    'JameelNooriNastaleeqKasheeda',
   ];
 
   static const List<String> _englishFonts = [
@@ -38,9 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final db = context.read<AppDatabase>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final pad = LedgerLayout.viewportHorizontalPadding(
@@ -63,81 +63,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: ListView(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         children: [
-                        Text(
-                          'Company',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 16),
-                        StreamBuilder<Company>(
-                          stream: (db.select(db.companies)
-                                ..where((t) => t.id.equals(_companyId)))
-                              .watchSingle(),
-                          builder: (context, snap) {
-                            final name = snap.data?.companyName ?? '';
-                            return _CompanyNameCard(
-                              name: name,
-                              onSave: (newName) async {
-                                await (db.update(db.companies)
+                          Text(
+                            'Company',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 16),
+                          StreamBuilder<Company>(
+                            stream:
+                                (db.select(db.companies)
                                       ..where((t) => t.id.equals(_companyId)))
-                                    .write(
-                                  CompaniesCompanion(
-                                    companyName: Value(newName),
-                                    updatedAt: Value(DateTime.now()),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Fonts',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 16),
-                        _FontCard(
-                          label: 'Urdu Font',
-                          value: settings.urduFont,
-                          options: _urduFonts,
-                          onChanged: settings.setUrduFont,
-                        ),
-                        const SizedBox(height: 12),
-                        _FontCard(
-                          label: 'English Font',
-                          value: settings.englishFont,
-                          options: _englishFonts,
-                          onChanged: settings.setEnglishFont,
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () => _checkForUpdatesManually(context),
-                            icon: const Icon(Icons.system_update_alt),
-                            label: const Text('Check for Updates'),
+                                    .watchSingle(),
+                            builder: (context, snap) {
+                              final name = snap.data?.companyName ?? '';
+                              return _CompanyNameCard(
+                                name: name,
+                                englishFont: settings.englishFont,
+                                onSave: (newName) async {
+                                  await (db.update(db.companies)
+                                        ..where((t) => t.id.equals(_companyId)))
+                                      .write(
+                                        CompaniesCompanion(
+                                          companyName: Value(newName),
+                                          updatedAt: Value(DateTime.now()),
+                                        ),
+                                      );
+                                },
+                              );
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.delete,
-                              side: const BorderSide(color: AppColors.delete),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Fonts',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 16),
+                          _FontCard(
+                            label: 'Urdu Font',
+                            value: _urduFonts.contains(settings.urduFont)
+                                ? settings.urduFont
+                                : _urduFonts.first,
+                            options: _urduFonts,
+                            onChanged: settings.setUrduFont,
+                          ),
+                          const SizedBox(height: 12),
+                          _FontCard(
+                            label: 'English Font',
+                            value: settings.englishFont,
+                            options: _englishFonts,
+                            onChanged: settings.setEnglishFont,
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _checkForUpdatesManually(context),
+                              icon: const Icon(Icons.system_update_alt),
+                              label: const Text('Check for Updates'),
                             ),
-                            onPressed: () => _confirmReset(context, db),
-                            icon: const Icon(Icons.delete_forever_outlined),
-                            label: const Text('Reset All Data'),
                           ),
-                        ),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.delete,
+                                side: const BorderSide(color: AppColors.delete),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () => _confirmReset(context, db),
+                              icon: const Icon(Icons.delete),
+                              label: const Text('Reset All Data'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -273,9 +278,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 class _CompanyNameCard extends StatefulWidget {
-  const _CompanyNameCard({required this.name, required this.onSave});
+  const _CompanyNameCard({
+    required this.name,
+    required this.englishFont,
+    required this.onSave,
+  });
 
   final String name;
+  final String englishFont;
   final ValueChanged<String> onSave;
 
   @override
@@ -285,6 +295,20 @@ class _CompanyNameCard extends StatefulWidget {
 class _CompanyNameCardState extends State<_CompanyNameCard> {
   late final TextEditingController _controller;
   bool _isEditing = false;
+
+  TextStyle _englishStyle(
+    BuildContext context, {
+    required double fontSize,
+    required FontWeight fontWeight,
+    Color? color,
+  }) {
+    final base = TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color ?? AppColors.textPrimary,
+    );
+    return GoogleFonts.getFont(widget.englishFont, textStyle: base);
+  }
 
   @override
   void initState() {
@@ -331,8 +355,19 @@ class _CompanyNameCardState extends State<_CompanyNameCard> {
                   ? TextField(
                       controller: _controller,
                       autofocus: true,
-                      decoration: const InputDecoration(
+                      style: _englishStyle(
+                        context,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
                         hintText: 'Company name',
+                        hintStyle: _englishStyle(
+                          context,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
                         border: InputBorder.none,
                         isDense: true,
                       ),
@@ -340,7 +375,8 @@ class _CompanyNameCardState extends State<_CompanyNameCard> {
                     )
                   : Text(
                       widget.name.isEmpty ? 'Company name' : widget.name,
-                      style: const TextStyle(
+                      style: _englishStyle(
+                        context,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
@@ -354,7 +390,10 @@ class _CompanyNameCardState extends State<_CompanyNameCard> {
                     onPressed: _save,
                   )
                 : IconButton(
-                    icon: const Icon(Icons.edit, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.edit,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: () => setState(() => _isEditing = true),
                   ),
           ],
@@ -406,10 +445,7 @@ class _FontCard extends StatelessWidget {
                 items: options.map((font) {
                   return DropdownMenuItem<String>(
                     value: font,
-                    child: Text(
-                      font,
-                      style: const TextStyle(fontSize: 14),
-                    ),
+                    child: Text(font, style: const TextStyle(fontSize: 14)),
                   );
                 }).toList(),
                 onChanged: (font) {

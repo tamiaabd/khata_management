@@ -24,12 +24,20 @@ class _HomeScreenState extends State<HomeScreen> {
   static const int _companyId = 1;
   final _scroll = ScrollController();
   final _updateService = UpdateService();
+  String _appVersion = '';
   int? _partyFocusEntryId;
 
   @override
   void initState() {
     super.initState();
+    _loadAppTitle();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdates());
+  }
+
+  Future<void> _loadAppTitle() async {
+    final current = await _updateService.resolveCurrentVersion();
+    if (!mounted) return;
+    setState(() => _appVersion = current.version);
   }
 
   @override
@@ -153,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 70,
         leading: IconButton(
           icon: const Icon(Icons.settings_outlined),
           tooltip: 'Settings',
@@ -162,7 +171,28 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        title: const Text('Virtual Manager'),
+        title: Text.rich(
+          TextSpan(
+            text: 'Virtual Manager',
+            children: [
+              if (_appVersion.isNotEmpty)
+                TextSpan(
+                  text: '  v$_appVersion',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+            letterSpacing: 0.2,
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -180,11 +210,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   companyId: _companyId,
                   companyName: company.companyName,
                   urduFont: s.urduFont,
-                  partyLabel: s.partyLabel,
+                  englishFont: s.englishFont,
                   value1Label: s.value1Label,
                   value2Label: s.value2Label,
                   value3Label: s.value3Label,
-                  pendingLabel: s.pendingLabel,
                 );
               }
             },
@@ -204,11 +233,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   companyId: _companyId,
                   companyName: company.companyName,
                   urduFont: s.urduFont,
-                  partyLabel: s.partyLabel,
+                  englishFont: s.englishFont,
                   value1Label: s.value1Label,
                   value2Label: s.value2Label,
                   value3Label: s.value3Label,
-                  pendingLabel: s.pendingLabel,
                 );
               }
             },

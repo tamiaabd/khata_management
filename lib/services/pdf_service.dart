@@ -20,6 +20,7 @@ import '../utils/constants.dart';
 /// fonts that lack Arabic Presentation Forms in their cmap table.
 abstract final class PdfService {
   static final _dateFmt = DateFormat('dd-MM-yyyy');
+  static const String _fixedUrduHeaderFont = 'BombayBlackUnicode';
 
   // 1 PDF point = 1/72 inch; A4 = 210×297 mm
   static const double _mm = 72.0 / 25.4;
@@ -44,6 +45,39 @@ abstract final class PdfService {
 
   static PdfPageFormat _a4Format() {
     return PdfPageFormat(210 * _mm, 297 * _mm, marginAll: 0);
+  }
+
+  static Future<({pw.Font regular, pw.Font bold})> _loadEnglishFonts(
+    String englishFont,
+  ) async {
+    switch (englishFont) {
+      case 'Roboto':
+        return (
+          regular: await PdfGoogleFonts.robotoRegular(),
+          bold: await PdfGoogleFonts.robotoBold(),
+        );
+      case 'Open Sans':
+        return (
+          regular: await PdfGoogleFonts.openSansRegular(),
+          bold: await PdfGoogleFonts.openSansBold(),
+        );
+      case 'Inter':
+        return (
+          regular: await PdfGoogleFonts.interRegular(),
+          bold: await PdfGoogleFonts.interBold(),
+        );
+      case 'Lato':
+        return (
+          regular: await PdfGoogleFonts.latoRegular(),
+          bold: await PdfGoogleFonts.latoBold(),
+        );
+      case 'Poppins':
+      default:
+        return (
+          regular: await PdfGoogleFonts.poppinsRegular(),
+          bold: await PdfGoogleFonts.poppinsBold(),
+        );
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -106,18 +140,19 @@ abstract final class PdfService {
     required List<LedgerEntry> entries,
     required DateTime generatedAt,
     required String urduFont,
-    String partyLabel = 'Party Name',
+    required String englishFont,
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
-    String pendingLabel = 'Pending',
   }) async {
-    final latin = pw.Font.helvetica();
+    const partyLabel = LedgerLayout.partyHeaderText;
+    const pendingLabel = LedgerLayout.pendingHeaderText;
+    final latin = await _loadEnglishFonts(englishFont);
 
-    const double partyNameSize =
-        LedgerLayout.partyNameFontSize * _ptPerPx; // 16.5 pt
-    const double headerSize =
-        LedgerLayout.tableHeaderFontSize * _ptPerPx; // 9.75 pt
+    final double partyNameSize = LedgerLayout.partyNameFontSize * _ptPerPx;
+    final double partyHeaderSize = LedgerLayout.partyHeaderFontSize * _ptPerPx;
+    final double pendingHeaderSize =
+        LedgerLayout.pendingHeaderFontSize * _ptPerPx;
     const double companySize = LedgerLayout.headerFontSize * _ptPerPx; // 15 pt
 
     // Pre-render all Urdu strings as images using Flutter's HarfBuzz engine.
@@ -138,9 +173,18 @@ abstract final class PdfService {
     if (_isUrdu(partyLabel)) {
       urduImgs['partyLabel'] = await _renderUrduImage(
         partyLabel,
-        fontFamily: urduFont,
-        pdfFontSize: headerSize,
-        color: const Color(0xFF2D5A5A),
+        fontFamily: _fixedUrduHeaderFont,
+        pdfFontSize: partyHeaderSize,
+        color: const Color(0xFF1A1A1A),
+        bold: true,
+      );
+    }
+    if (_isUrdu(pendingLabel)) {
+      urduImgs['pendingLabel'] = await _renderUrduImage(
+        pendingLabel,
+        fontFamily: _fixedUrduHeaderFont,
+        pdfFontSize: pendingHeaderSize,
+        color: const Color(0xFF1A1A1A),
         bold: true,
       );
     }
@@ -166,12 +210,13 @@ abstract final class PdfService {
       companyName: companyName,
       entries: entries,
       generatedAt: generatedAt,
-      partyLabel: partyLabel,
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
-      pendingLabel: pendingLabel,
       urduImgs: urduImgs,
+      partyNameSize: partyNameSize,
+      partyHeaderSize: partyHeaderSize,
+      pendingHeaderSize: pendingHeaderSize,
     );
 
     return Uint8List.fromList(await doc.save());
@@ -182,21 +227,22 @@ abstract final class PdfService {
   // ─────────────────────────────────────────────────────────────────────────
 
   static pw.Document _buildDocument({
-    required pw.Font latin,
+    required ({pw.Font regular, pw.Font bold}) latin,
     required PdfPageFormat format,
     required String companyName,
     required List<LedgerEntry> entries,
     required DateTime generatedAt,
-    required String partyLabel,
     required String value1Label,
     required String value2Label,
     required String value3Label,
-    required String pendingLabel,
     required Map<String, ({pw.MemoryImage img, double w, double h})> urduImgs,
+    required double partyNameSize,
+    required double partyHeaderSize,
+    required double pendingHeaderSize,
   }) {
+    const partyLabel = LedgerLayout.partyHeaderText;
+    const pendingLabel = LedgerLayout.pendingHeaderText;
     const bodySize = LedgerLayout.tableBodyFontSize * _ptPerPx; // 10.5 pt
-    const double partyNameSize =
-        LedgerLayout.partyNameFontSize * _ptPerPx; // 16.5 pt
     const headerSize = LedgerLayout.tableHeaderFontSize * _ptPerPx; // 9.75 pt
     const companySize = LedgerLayout.headerFontSize * _ptPerPx; // 15 pt
     const summarySize = LedgerLayout.summaryFontSize * _ptPerPx; // 11.25 pt
@@ -208,6 +254,8 @@ abstract final class PdfService {
     const double sheetVPaddingPt = (LedgerLayout.sheetPadding * _ptPerPx) / 2.0;
     const double frameInsetPt = 10;
     const double frameHPaddingPt = 12;
+    const double pendingHeaderRightInsetPt =
+        LedgerLayout.colActionFixed * _ptPerPx;
     final double frameVPaddingPt = (sheetVPaddingPt - frameInsetPt) + 8;
 
     pw.Widget numText(String s, {pw.TextAlign align = pw.TextAlign.right}) {
@@ -215,7 +263,7 @@ abstract final class PdfService {
         s,
         textAlign: align,
         textDirection: pw.TextDirection.ltr,
-        style: pw.TextStyle(font: latin, fontSize: bodySize),
+        style: pw.TextStyle(font: latin.regular, fontSize: bodySize),
       );
     }
 
@@ -238,9 +286,8 @@ abstract final class PdfService {
         textAlign: align,
         textDirection: pw.TextDirection.ltr,
         style: pw.TextStyle(
-          font: latin,
+          font: bold ? latin.bold : latin.regular,
           fontSize: fontSize,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
           color: color,
         ),
       );
@@ -296,7 +343,7 @@ abstract final class PdfService {
                                 child: pw.Text(
                                   'Page $pageIndex of $totalPages',
                                   style: pw.TextStyle(
-                                    font: latin,
+                                    font: latin.regular,
                                     fontSize: 9,
                                     color: _textSecondary,
                                   ),
@@ -321,7 +368,7 @@ abstract final class PdfService {
                                   textAlign: pw.TextAlign.right,
                                   textDirection: pw.TextDirection.ltr,
                                   style: pw.TextStyle(
-                                    font: latin,
+                                    font: latin.regular,
                                     fontSize: 11,
                                     color: _textPrimary,
                                   ),
@@ -370,44 +417,61 @@ abstract final class PdfService {
                           children: [
                             _th(
                               '#',
-                              latin,
+                              latin.bold,
                               headerSize,
                               height: tableHeaderPt,
                               align: pw.TextAlign.center,
                             ),
                             // Party label: image if Urdu, text if Latin
                             _td(
-                              textOrImage(
-                                partyLabel,
-                                'partyLabel',
-                                fontSize: headerSize,
-                                bold: true,
-                                color: _primary,
+                              pw.Align(
+                                alignment: pw.Alignment.centerRight,
+                                child: textOrImage(
+                                  partyLabel,
+                                  'partyLabel',
+                                  fontSize: partyHeaderSize,
+                                  align: pw.TextAlign.right,
+                                  bold: true,
+                                  color: _textPrimary,
+                                ),
                               ),
                               height: tableHeaderPt,
                             ),
                             _th(
                               value1Label,
-                              latin,
+                              latin.bold,
                               headerSize,
                               height: tableHeaderPt,
                             ),
                             _th(
                               value2Label,
-                              latin,
+                              latin.bold,
                               headerSize,
                               height: tableHeaderPt,
                             ),
                             _th(
                               value3Label,
-                              latin,
+                              latin.bold,
                               headerSize,
                               height: tableHeaderPt,
                             ),
-                            _th(
-                              pendingLabel,
-                              latin,
-                              headerSize,
+                            _td(
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.only(
+                                  right: pendingHeaderRightInsetPt,
+                                ),
+                                child: pw.Align(
+                                  alignment: pw.Alignment.centerRight,
+                                  child: textOrImage(
+                                    pendingLabel,
+                                    'pendingLabel',
+                                    fontSize: pendingHeaderSize,
+                                    align: pw.TextAlign.right,
+                                    bold: true,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                              ),
                               height: tableHeaderPt,
                             ),
                           ],
@@ -477,9 +541,8 @@ abstract final class PdfService {
                                   'TOTAL',
                                   textDirection: pw.TextDirection.ltr,
                                   style: pw.TextStyle(
-                                    font: latin,
+                                    font: latin.bold,
                                     fontSize: summarySize,
-                                    fontWeight: pw.FontWeight.bold,
                                     color: _primary,
                                   ),
                                 ),
@@ -494,9 +557,8 @@ abstract final class PdfService {
                                   textAlign: pw.TextAlign.right,
                                   textDirection: pw.TextDirection.ltr,
                                   style: pw.TextStyle(
-                                    font: latin,
+                                    font: latin.bold,
                                     fontSize: summarySize,
-                                    fontWeight: pw.FontWeight.bold,
                                     color: _textPrimary,
                                   ),
                                 ),
@@ -547,7 +609,7 @@ abstract final class PdfService {
               font: font,
               fontSize: fontSize,
               fontWeight: pw.FontWeight.bold,
-              color: _primary,
+              color: _textPrimary,
             ),
           ),
         ),
@@ -594,11 +656,10 @@ abstract final class PdfService {
     required int companyId,
     required String companyName,
     required String urduFont,
-    String partyLabel = 'Party Name',
+    required String englishFont,
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
-    String pendingLabel = 'Pending',
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
@@ -610,11 +671,10 @@ abstract final class PdfService {
         entries: entries,
         generatedAt: DateTime.now(),
         urduFont: urduFont,
-        partyLabel: partyLabel,
+        englishFont: englishFont,
         value1Label: value1Label,
         value2Label: value2Label,
         value3Label: value3Label,
-        pendingLabel: pendingLabel,
       ),
     );
   }
@@ -625,11 +685,10 @@ abstract final class PdfService {
     required int companyId,
     required String companyName,
     required String urduFont,
-    String partyLabel = 'Party Name',
+    required String englishFont,
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
-    String pendingLabel = 'Pending',
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
@@ -639,11 +698,10 @@ abstract final class PdfService {
       entries: entries,
       generatedAt: DateTime.now(),
       urduFont: urduFont,
-      partyLabel: partyLabel,
+      englishFont: englishFont,
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
-      pendingLabel: pendingLabel,
     );
     await Printing.sharePdf(
       bytes: bytes,

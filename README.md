@@ -20,7 +20,6 @@ samples, guidance on mobile development, and a full API reference.
 
 This project includes GitHub-based auto update support:
 
-- On every push to `main`, GitHub Actions builds:
 - On every push to `main` or `master`, GitHub Actions builds:
   - Windows `.msix`
   - Android `.apk`
@@ -30,10 +29,24 @@ This project includes GitHub-based auto update support:
 - When user clicks update:
   - Windows: download `.msix` and open installer
   - Android: download `.apk` and open package installer
+- Release now also includes `khata_windows_bundle.rar` containing:
+  - `KhataManagement.msix`
+  - `KhataManagement.cer`
+  - `install_msix.bat`
 
-### Windows MSIX note
+### Windows MSIX signing setup (self-created certificate)
 
-For production MSIX distribution, configure proper code-signing certificate settings in `msix_config` and GitHub secrets (if required by your distribution policy).
+1. Generate a certificate locally:
+   - Run `scripts/windows/create_signing_cert.ps1`
+2. Add GitHub repository secrets:
+   - `WIN_CERT_PFX_BASE64` -> content of `*.pfx.base64.txt`
+   - `WIN_CERT_CER_BASE64` -> content of `*.cer.base64.txt`
+   - `WIN_CERT_PASSWORD` -> certificate password
+3. Push code. Workflow signs MSIX using your certificate and publishes both direct `.msix` and `.rar` bundle.
+
+Important:
+- Never upload your `.pfx` file directly in the repository.
+- `.cer` is safe to share and is included in the bundle for installation.
 
 ### Why GitHub Actions may not run
 
@@ -44,6 +57,7 @@ For production MSIX distribution, configure proper code-signing certificate sett
 ### Where builds are available
 
 - **Actions tab**:
-  - Open a workflow run, then download artifacts (`windows-msix`, `android-apk`).
+  - Open a workflow run, then download artifacts (`windows-msix`, `windows-rar-bundle`, `android-apk`).
 - **Releases tab**:
   - Open latest auto release, download `.msix` / `.apk` assets directly.
+  - Download `khata_windows_bundle.rar` for one-click install package.
