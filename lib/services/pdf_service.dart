@@ -29,11 +29,11 @@ abstract final class PdfService {
   static const double _ptPerPx = 72.0 / 96.0; // 0.75
 
   // Match AppColors exactly
-  static const _primaryLight = PdfColor(0.910, 0.941, 0.941); // #E8F0F0
-  static const _primary = PdfColor(0.176, 0.353, 0.353); // #2D5A5A
-  static const _textPrimary = PdfColor(0.102, 0.102, 0.102); // #1A1A1A
-  static const _textSecondary = PdfColor(0.420, 0.447, 0.502); // #6B7280
-  static const _gridLine = PdfColor(0.898, 0.906, 0.922); // #E5E7EB
+  static const _primaryLight = PdfColor(0.890, 0.949, 0.992); // #E3F2FD
+  static const _primary = PdfColor(0.129, 0.588, 0.953); // #2196F3
+  static const _textPrimary = PdfColor(0.051, 0.106, 0.165); // #0D1B2A
+  static const _textSecondary = PdfColor(0.361, 0.494, 0.651); // #5C7EA6
+  static const _gridLine = PdfColor(0.839, 0.918, 0.984); // #D6EAFB
 
   /// Render scale for Urdu text images (higher = crisper text in PDF).
   static const double _renderScale = 3.0;
