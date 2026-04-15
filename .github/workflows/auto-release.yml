@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           flutter config --enable-windows-desktop
-          flutter build windows --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}"
+          flutter build windows --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}" --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
 
       - name: Decode signing certificate files
         shell: pwsh
@@ -114,7 +114,7 @@ jobs:
           echo "BASE_VERSION=$BASE_VERSION" >> "$GITHUB_ENV"
 
       - name: Build android apk
-        run: flutter build apk --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}"
+        run: flutter build apk --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}" --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
 
       - name: Upload android artifact
         uses: actions/upload-artifact@v4
@@ -168,3 +168,66 @@ jobs:
             dist/windows/**/*.msix
             dist/android/**/*.apk
             dist/windows-zip/**/*.zip
+
+      - name: Upload builds to Supabase storage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          MSIX_FILE=$(find dist/windows -name "*.msix" | head -1)
+          APK_FILE=$(find dist/android -name "*.apk" | head -1)
+          ZIP_FILE=$(find dist/windows-zip -name "*.zip" | head -1)
+
+          upload_to_supabase() {
+            local file_path="$1"
+            local file_name="$2"
+            echo "Uploading ${file_name}..."
+            HTTP_STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              -X POST \
+              "${SUPABASE_URL}/storage/v1/object/builds/${TAG_NAME}/${file_name}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@${file_path}")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "${file_name} uploaded."
+            else
+              echo "Failed. HTTP: ${HTTP_STATUS}"; cat /tmp/resp.txt; exit 1
+            fi
+          }
+
+          upload_to_supabase "$MSIX_FILE" "KhataManagement.msix"
+          upload_to_supabase "$APK_FILE" "app-release.apk"
+          upload_to_supabase "$ZIP_FILE" "khata_windows_bundle.zip"
+
+      - name: Update latest.json in Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cat > /tmp/latest.json << EOF
+          {
+            "version": "${BASE_VERSION}",
+            "build_number": ${{ github.run_number }},
+            "tag": "${TAG_NAME}",
+            "windows": {
+              "msix_url": "${SUPABASE_URL}/storage/v1/object/public/builds/${TAG_NAME}/KhataManagement.msix",
+              "zip_url": "${SUPABASE_URL}/storage/v1/object/public/builds/${TAG_NAME}/khata_windows_bundle.zip"
+            },
+            "android": {
+              "apk_url": "${SUPABASE_URL}/storage/v1/object/public/builds/${TAG_NAME}/app-release.apk"
+            }
+          }
+          EOF
+          HTTP_STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST \
+            "${SUPABASE_URL}/storage/v1/object/builds/latest.json" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            --data-binary "@/tmp/latest.json")
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "latest.json updated."
+          else
+            echo "Failed. HTTP: ${HTTP_STATUS}"; cat /tmp/resp.txt; exit 1
+          fi
+

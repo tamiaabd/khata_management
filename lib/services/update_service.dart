@@ -50,47 +50,49 @@ class UpdateService {
 
   Future<UpdateInfo?> checkForUpdate() async {
     final current = await resolveCurrentVersion();
-    final currentVersion = current.version;
-    final currentBuild = current.build;
-    final uri = Uri.https(
-      'api.github.com',
-      '/repos/${AppUpdateConfig.repoOwner}/${AppUpdateConfig.repoName}/releases/latest',
-    );
-    final response = await http.get(
-      uri,
-      headers: const {'Accept': 'application/vnd.github+json'},
-    );
+    if (AppUpdateConfig.supabaseUrl.isEmpty) return null;
 
-    if (response.statusCode != 200) {
-      return null;
-    }
+    final uri = Uri.parse(
+      '${AppUpdateConfig.supabaseUrl}/storage/v1/object/public/${AppUpdateConfig.supabaseBucket}/latest.json',
+    );
+    final response = await http.get(uri);
+    if (response.statusCode != 200) return null;
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final tag = (json['tag_name'] as String? ?? '').trim();
-    final releaseUrl = (json['html_url'] as String? ?? '').trim();
-    if (tag.isEmpty || releaseUrl.isEmpty) {
-      return null;
-    }
-    final latestVersion = _parseVersionName(tag);
-    final latestBuild = _parseBuildNumber(tag);
+    final latestVersion = (json['version'] as String? ?? '').trim();
+    final latestBuild = (json['build_number'] ?? 0).toString();
+    if (latestVersion.isEmpty) return null;
 
     if (!_isNewerRelease(
       latestVersion: latestVersion,
       latestBuild: latestBuild,
-      currentVersion: currentVersion,
-      currentBuild: currentBuild,
-    )) {
+      currentVersion: current.version,
+      currentBuild: current.build,
+    ))
       return null;
-    }
 
-    final assetUrl = _pickAssetUrl(json['assets']);
+    final updateUrl = _pickPlatformUrl(json);
     return UpdateInfo(
-      currentVersion: currentVersion,
-      currentBuild: currentBuild,
+      currentVersion: current.version,
+      currentBuild: current.build,
       latestVersion: latestVersion,
       latestBuild: latestBuild,
-      updateUrl: assetUrl ?? releaseUrl,
+      updateUrl: updateUrl ?? '',
     );
+  }
+
+  String? _pickPlatformUrl(Map<String, dynamic> json) {
+    if (kIsWeb) return null;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+        final windows = json['windows'] as Map<String, dynamic>?;
+        return windows?['zip_url'] as String?;
+      case TargetPlatform.android:
+        final android = json['android'] as Map<String, dynamic>?;
+        return android?['apk_url'] as String?;
+      default:
+        return null;
+    }
   }
 
   Future<bool> downloadAndInstall(
@@ -105,31 +107,13 @@ class UpdateService {
       return launchUrl(uri, mode: LaunchMode.externalApplication);
     }
 
-    final file = await _downloadAsset(
-      info.updateUrl,
-      onProgress: onProgress,
-    );
+    final file = await _downloadAsset(info.updateUrl, onProgress: onProgress);
     if (file == null) {
       return false;
     }
 
     final result = await OpenFilex.open(file.path);
     return result.type == ResultType.done;
-  }
-
-  String? _pickAssetUrl(dynamic assetsJson) {
-    if (assetsJson is! List) return null;
-    final assets = assetsJson.whereType<Map<String, dynamic>>();
-    final platformTokens = _platformTokens();
-    for (final asset in assets) {
-      final name = (asset['name'] as String? ?? '').toLowerCase();
-      if (name.isEmpty) continue;
-      if (platformTokens.any(name.contains)) {
-        final url = (asset['browser_download_url'] as String? ?? '').trim();
-        if (url.isNotEmpty) return url;
-      }
-    }
-    return null;
   }
 
   Future<File?> _downloadAsset(
@@ -177,24 +161,6 @@ class UpdateService {
       return '$base.apk';
     }
     return base;
-  }
-
-  List<String> _platformTokens() {
-    if (kIsWeb) return const [];
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return const ['android', '.apk', '.aab'];
-      case TargetPlatform.iOS:
-        return const ['ios', '.ipa'];
-      case TargetPlatform.windows:
-        return const ['windows', '.exe', '.msix', '.msi'];
-      case TargetPlatform.macOS:
-        return const ['macos', '.dmg', '.pkg', '.zip'];
-      case TargetPlatform.linux:
-        return const ['linux', '.appimage', '.deb', '.rpm', '.tar.gz'];
-      default:
-        return const [];
-    }
   }
 
   bool _isNewerRelease({
@@ -249,10 +215,7 @@ class UpdateService {
       final raw = match?.group(1)?.trim();
       if (raw == null || raw.isEmpty) return null;
       final parts = raw.split('+');
-      return (
-        version: parts.first,
-        build: parts.length > 1 ? parts[1] : '0',
-      );
+      return (version: parts.first, build: parts.length > 1 ? parts[1] : '0');
     } catch (_) {
       return null;
     }
