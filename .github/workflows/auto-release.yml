@@ -132,6 +132,9 @@ jobs:
       - build_windows_msix
       - build_android_apk
     runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ""
+      BASE_VERSION: ""
     steps:
       - uses: actions/checkout@v4
 
