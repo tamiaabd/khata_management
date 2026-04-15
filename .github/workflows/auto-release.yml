@@ -68,10 +68,6 @@ jobs:
             --certificate-path "$GITHUB_WORKSPACE/certs/signing_cert.pfx" \
             --certificate-password "$CERT_PASSWORD"
 
-      - name: Install 7-Zip
-        shell: pwsh
-        run: choco install 7zip -y
-
       - name: Build windows installer bundle (msix + cert + bat)
         shell: pwsh
         run: |
@@ -83,7 +79,7 @@ jobs:
           Copy-Item $msix.FullName "dist/windows_bundle/KhataManagement.msix"
           Copy-Item "certs/signing_cert.cer" "dist/windows_bundle/KhataManagement.cer"
           Copy-Item ".github/windows-installer/install_msix.bat" "dist/windows_bundle/install_msix.bat"
-          & "C:\Program Files\7-Zip\7z.exe" a "dist/khata_windows_bundle.rar" "dist/windows_bundle/*"
+          Compress-Archive -Path "dist/windows_bundle/*" -DestinationPath "dist/khata_windows_bundle.zip" -Force
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v4
@@ -92,11 +88,11 @@ jobs:
           path: build/windows/**/*.msix
           if-no-files-found: error
 
-      - name: Upload windows rar artifact
+      - name: Upload windows zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-rar-bundle
-          path: dist/khata_windows_bundle.rar
+          name: windows-zip-bundle
+          path: dist/khata_windows_bundle.zip
           if-no-files-found: error
 
   build_android_apk:
@@ -156,11 +152,11 @@ jobs:
           name: android-apk
           path: dist/android
 
-      - name: Download windows rar artifact
+      - name: Download windows zip artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-rar-bundle
-          path: dist/windows-rar
+          name: windows-zip-bundle
+          path: dist/windows-zip
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -171,4 +167,4 @@ jobs:
           files: |
             dist/windows/**/*.msix
             dist/android/**/*.apk
-            dist/windows-rar/**/*.rar
+            dist/windows-zip/**/*.zip
