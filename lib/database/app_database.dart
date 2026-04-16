@@ -40,7 +40,12 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final dir = await getApplicationDocumentsDirectory();
+    final Directory dir;
+    if (Platform.isWindows) {
+      dir = await getApplicationSupportDirectory();
+    } else {
+      dir = await getApplicationDocumentsDirectory();
+    }
     final file = File(p.join(dir.path, 'khata.sqlite'));
     if (Platform.isAndroid) {
       await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
