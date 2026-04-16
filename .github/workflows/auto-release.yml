@@ -114,7 +114,7 @@ jobs:
           echo "BASE_VERSION=$BASE_VERSION" >> "$GITHUB_ENV"
 
       - name: Build android apk
-        run: flutter build apk --release --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}" --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+        run: flutter build apk --release --target-platform android-arm64 --build-name "$BASE_VERSION" --build-number "${{ github.run_number }}" --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
 
       - name: Upload android artifact
         uses: actions/upload-artifact@v4
