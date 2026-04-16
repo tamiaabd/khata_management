@@ -4,7 +4,10 @@
       "Bash(flutter analyze:*)",
       "Bash(xargs grep:*)",
       "Bash(git push:*)",
-      "Bash(powershell -NoProfile -Command ':*)"
+      "Bash(powershell -NoProfile -Command ':*)",
+      "Bash(flutter pub *)",
+      "Bash(flutter build *)",
+      "Bash(dart run *)"
     ]
   }
 }

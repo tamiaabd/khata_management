@@ -24,7 +24,15 @@ if not exist "%MSIX_FILE%" (
   exit /b 1
 )
 
-echo Installing certificate...
+echo Installing certificate to Trusted Root Certification Authorities...
+certutil -addstore "Root" "%CERT_FILE%"
+if errorlevel 1 (
+  echo Root certificate installation failed.
+  pause
+  exit /b 1
+)
+
+echo Installing certificate to Trusted People...
 certutil -addstore "TrustedPeople" "%CERT_FILE%"
 if errorlevel 1 (
   echo Certificate installation failed.
