@@ -7,7 +7,7 @@ class SettingsProvider extends ChangeNotifier {
 
   final AppDatabase _db;
 
-  String _urduFont = 'BombayBlackUnicode';
+  String _urduFont = 'JameelNooriNastaleeq';
   String _englishFont = 'Poppins';
   String _value1Label = 'Value 1';
   String _value2Label = 'Value 2';
@@ -84,9 +84,9 @@ class SettingsProvider extends ChangeNotifier {
   String _normalizeUrduFont(String raw) {
     if (_supportedUrduFonts.contains(raw)) return raw;
     if (raw == 'BobyBlack' || raw == 'NotoNastaliqUrdu') {
-      return 'BombayBlackUnicode';
+      return 'JameelNooriNastaleeq';
     }
     // Migrate old stored values to current supported font.
-    return 'BombayBlackUnicode';
+    return 'JameelNooriNastaleeq';
   }
 }

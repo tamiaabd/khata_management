@@ -307,6 +307,9 @@ class _CompanyNameCardState extends State<_CompanyNameCard> {
       fontWeight: fontWeight,
       color: color ?? AppColors.textPrimary,
     );
+    if (widget.englishFont == 'Poppins') {
+      return base.copyWith(fontFamily: 'Poppins');
+    }
     return GoogleFonts.getFont(widget.englishFont, textStyle: base);
   }
 

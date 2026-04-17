@@ -68,8 +68,9 @@ class UpdateService {
       latestBuild: latestBuild,
       currentVersion: current.version,
       currentBuild: current.build,
-    ))
+    )) {
       return null;
+    }
 
     final updateUrl = _pickPlatformUrl(json);
     return UpdateInfo(
@@ -188,18 +189,6 @@ class UpdateService {
     final match = RegExp(r'^\d+(\.\d+)*').firstMatch(normalized);
     final numeric = match?.group(0) ?? '0';
     return numeric.split('.').map((part) => int.tryParse(part) ?? 0).toList();
-  }
-
-  String _parseVersionName(String tag) {
-    final normalized = tag.replaceFirst(RegExp(r'^[vV]'), '');
-    return normalized.split('+').first;
-  }
-
-  String _parseBuildNumber(String tag) {
-    final normalized = tag.replaceFirst(RegExp(r'^[vV]'), '');
-    final parts = normalized.split('+');
-    if (parts.length < 2) return '0';
-    return parts[1];
   }
 
   Future<({String version, String build})?> _readDebugPubspecVersion() async {

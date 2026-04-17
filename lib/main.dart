@@ -41,7 +41,7 @@ Future<void> _ensureDefaultCompany(AppDatabase db) async {
 Future<void> _ensureDefaultFonts(AppDatabase db) async {
   final urdu = await db.settingsDao.getValue('urdu_font');
   if (urdu == null) {
-    await db.settingsDao.setValue('urdu_font', 'BombayBlackUnicode');
+    await db.settingsDao.setValue('urdu_font', 'JameelNooriNastaleeq');
   }
   final english = await db.settingsDao.getValue('english_font');
   if (english == null) {

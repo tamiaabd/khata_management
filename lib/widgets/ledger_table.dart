@@ -78,11 +78,11 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
               ),
             ),
             Expanded(
-              flex: _flexParty,
+              flex: _flexNum,
               child: const _StaticUrduHeaderText(
-                text: LedgerLayout.partyHeaderText,
+                text: LedgerLayout.pendingHeaderText,
                 fontFamily: 'BombayBlackUnicode',
-                fontSize: LedgerLayout.partyHeaderFontSize,
+                fontSize: LedgerLayout.pendingHeaderFontSize,
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
               ),
             ),
@@ -120,11 +120,11 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
               ),
             ),
             Expanded(
-              flex: _flexNum,
+              flex: _flexParty,
               child: const _StaticUrduHeaderText(
-                text: LedgerLayout.pendingHeaderText,
+                text: LedgerLayout.partyHeaderText,
                 fontFamily: 'BombayBlackUnicode',
-                fontSize: LedgerLayout.pendingHeaderFontSize,
+                fontSize: LedgerLayout.partyHeaderFontSize,
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
               ),
             ),
@@ -225,12 +225,14 @@ class LedgerTable extends StatefulWidget {
     required this.companyId,
     required this.entries,
     this.partyFocusEntryId,
+    this.onAddRow,
   });
 
   final AppDatabase db;
   final int companyId;
   final List<LedgerEntry> entries;
   final int? partyFocusEntryId;
+  final VoidCallback? onAddRow;
 
   @override
   State<LedgerTable> createState() => _LedgerTableState();
@@ -313,6 +315,7 @@ class _LedgerTableState extends State<LedgerTable> {
             nextPartyFocus: i + 1 < entries.length
                 ? _partyFocusByEntryId[entries[i + 1].id]
                 : null,
+            onAddRow: i == entries.length - 1 ? widget.onAddRow : null,
           ),
         if (entries.isEmpty)
           Container(
@@ -337,6 +340,7 @@ class _LedgerRow extends StatefulWidget {
     required this.requestPartyFocus,
     required this.partyFocus,
     this.nextPartyFocus,
+    this.onAddRow,
   });
 
   final AppDatabase db;
@@ -345,6 +349,7 @@ class _LedgerRow extends StatefulWidget {
   final bool requestPartyFocus;
   final FocusNode partyFocus;
   final FocusNode? nextPartyFocus;
+  final VoidCallback? onAddRow;
 
   @override
   State<_LedgerRow> createState() => _LedgerRowState();
@@ -527,6 +532,56 @@ class _LedgerRowState extends State<_LedgerRow> {
                     ),
                   ),
                   Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _pendingFocus,
+                      controller: _pending,
+                      textInputAction:
+                          (widget.nextPartyFocus != null ||
+                                  widget.onAddRow != null)
+                              ? TextInputAction.next
+                              : TextInputAction.done,
+                      onEditingComplete: () {
+                        final next = widget.nextPartyFocus;
+                        if (next != null) {
+                          next.requestFocus();
+                        } else if (widget.onAddRow != null) {
+                          widget.onAddRow!();
+                        } else {
+                          _pendingFocus.unfocus();
+                        }
+                      },
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v1Focus,
+                      controller: _v1,
+                      onEditingComplete: () => _pendingFocus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v2Focus,
+                      controller: _v2,
+                      onEditingComplete: () => _v1Focus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flexNum,
+                    child: NumericLedgerField(
+                      focusNode: _v3Focus,
+                      controller: _v3,
+                      onEditingComplete: () => _v2Focus.requestFocus(),
+                      onChanged: (_) => _schedulePersist(),
+                    ),
+                  ),
+                  Expanded(
                     flex: _flexParty,
                     child: Directionality(
                       textDirection: dir,
@@ -536,7 +591,7 @@ class _LedgerRowState extends State<_LedgerRow> {
                         minLines: 1,
                         maxLines: 1,
                         textInputAction: TextInputAction.next,
-                        onEditingComplete: () => _v1Focus.requestFocus(),
+                        onEditingComplete: () => _v3Focus.requestFocus(),
                         style: dir == TextDirection.rtl
                             ? TextStyle(
                                 fontSize: LedgerLayout.partyNameFontSize,
@@ -558,52 +613,6 @@ class _LedgerRowState extends State<_LedgerRow> {
                           _schedulePersist();
                         },
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: _flexNum,
-                    child: NumericLedgerField(
-                      focusNode: _v1Focus,
-                      controller: _v1,
-                      onEditingComplete: () => _v2Focus.requestFocus(),
-                      onChanged: (_) => _schedulePersist(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: _flexNum,
-                    child: NumericLedgerField(
-                      focusNode: _v2Focus,
-                      controller: _v2,
-                      onEditingComplete: () => _v3Focus.requestFocus(),
-                      onChanged: (_) => _schedulePersist(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: _flexNum,
-                    child: NumericLedgerField(
-                      focusNode: _v3Focus,
-                      controller: _v3,
-                      onEditingComplete: () => _pendingFocus.requestFocus(),
-                      onChanged: (_) => _schedulePersist(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: _flexNum,
-                    child: NumericLedgerField(
-                      focusNode: _pendingFocus,
-                      controller: _pending,
-                      textInputAction: widget.nextPartyFocus != null
-                          ? TextInputAction.next
-                          : TextInputAction.done,
-                      onEditingComplete: () {
-                        final next = widget.nextPartyFocus;
-                        if (next != null) {
-                          next.requestFocus();
-                        } else {
-                          _pendingFocus.unfocus();
-                        }
-                      },
-                      onChanged: (_) => _schedulePersist(),
                     ),
                   ),
                   SizedBox(

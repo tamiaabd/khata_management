@@ -66,12 +66,12 @@ ThemeData buildAppTheme({
 
 TextTheme _englishTextTheme(String font) {
   return switch (font) {
-    'Poppins' => GoogleFonts.poppinsTextTheme(),
+    'Poppins' => Typography.material2021().black.apply(fontFamily: 'Poppins'),
     'Roboto' => GoogleFonts.robotoTextTheme(),
     'Open Sans' => GoogleFonts.openSansTextTheme(),
     'Inter' => GoogleFonts.interTextTheme(),
     'Lato' => GoogleFonts.latoTextTheme(),
-    _ => GoogleFonts.poppinsTextTheme(),
+    _ => Typography.material2021().black.apply(fontFamily: 'Poppins'),
   };
 }
 
@@ -91,11 +91,11 @@ TextStyle _englishStyle(
     color: color,
   );
   return switch (font) {
-    'Poppins' => GoogleFonts.poppins(textStyle: base),
+    'Poppins' => base.copyWith(fontFamily: 'Poppins'),
     'Roboto' => GoogleFonts.roboto(textStyle: base),
     'Open Sans' => GoogleFonts.openSans(textStyle: base),
     'Inter' => GoogleFonts.inter(textStyle: base),
     'Lato' => GoogleFonts.lato(textStyle: base),
-    _ => GoogleFonts.poppins(textStyle: base),
+    _ => base.copyWith(fontFamily: 'Poppins'),
   };
 }

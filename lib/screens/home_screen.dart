@@ -287,6 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         p == pages.length - 1
                                             ? _partyFocusEntryId
                                             : null,
+                                    onAddRow: p == pages.length - 1
+                                        ? () => _addRow(db)
+                                        : null,
                                   ),
                                   if (p == pages.length - 1)
                                     SummaryFooter(totals: totals)

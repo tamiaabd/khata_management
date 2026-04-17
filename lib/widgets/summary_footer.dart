@@ -29,20 +29,6 @@ class SummaryFooter extends StatelessWidget {
           child: Row(
             children: [
               const SizedBox(width: 44),
-              const Expanded(
-                flex: 3,
-                child: Text(
-                  'TOTAL',
-                  style: TextStyle(
-                    fontSize: LedgerLayout.summaryFontSize,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const Expanded(flex: 2, child: SizedBox.shrink()),
-              const Expanded(flex: 2, child: SizedBox.shrink()),
-              const Expanded(flex: 2, child: SizedBox.shrink()),
               Expanded(
                 flex: 2,
                 child: Text(
@@ -53,6 +39,21 @@ class SummaryFooter extends StatelessWidget {
                     fontSize: LedgerLayout.summaryFontSize,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const Expanded(flex: 2, child: SizedBox.shrink()),
+              const Expanded(flex: 2, child: SizedBox.shrink()),
+              const Expanded(flex: 2, child: SizedBox.shrink()),
+              const Expanded(
+                flex: 3,
+                child: Text(
+                  'TOTAL',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: LedgerLayout.summaryFontSize,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
               ),

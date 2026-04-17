@@ -74,8 +74,12 @@ abstract final class PdfService {
       case 'Poppins':
       default:
         return (
-          regular: await PdfGoogleFonts.poppinsRegular(),
-          bold: await PdfGoogleFonts.poppinsBold(),
+          regular: pw.Font.ttf(
+            await rootBundle.load('assets/fonts/poppins/Poppins-Regular.ttf'),
+          ),
+          bold: pw.Font.ttf(
+            await rootBundle.load('assets/fonts/poppins/Poppins-Bold.ttf'),
+          ),
         );
     }
   }
@@ -395,7 +399,7 @@ abstract final class PdfService {
                       columnWidths: {
                         0: pw.FixedColumnWidth(serialPt),
                         1: pw.FlexColumnWidth(
-                          LedgerLayout.colPartyFlex.toDouble(),
+                          LedgerLayout.colValueFlex.toDouble(),
                         ),
                         2: pw.FlexColumnWidth(
                           LedgerLayout.colValueFlex.toDouble(),
@@ -407,7 +411,7 @@ abstract final class PdfService {
                           LedgerLayout.colValueFlex.toDouble(),
                         ),
                         5: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
+                          LedgerLayout.colPartyFlex.toDouble(),
                         ),
                       },
                       children: [
@@ -422,14 +426,14 @@ abstract final class PdfService {
                               height: tableHeaderPt,
                               align: pw.TextAlign.center,
                             ),
-                            // Party label: image if Urdu, text if Latin
+                            // Pending label: image if Urdu, text if Latin
                             _td(
                               pw.Align(
                                 alignment: pw.Alignment.centerRight,
                                 child: textOrImage(
-                                  partyLabel,
-                                  'partyLabel',
-                                  fontSize: partyHeaderSize,
+                                  pendingLabel,
+                                  'pendingLabel',
+                                  fontSize: pendingHeaderSize,
                                   align: pw.TextAlign.right,
                                   bold: true,
                                   color: _textPrimary,
@@ -455,6 +459,7 @@ abstract final class PdfService {
                               headerSize,
                               height: tableHeaderPt,
                             ),
+                            // Party label: image if Urdu, text if Latin
                             _td(
                               pw.Padding(
                                 padding: const pw.EdgeInsets.only(
@@ -463,9 +468,9 @@ abstract final class PdfService {
                                 child: pw.Align(
                                   alignment: pw.Alignment.centerRight,
                                   child: textOrImage(
-                                    pendingLabel,
-                                    'pendingLabel',
-                                    fontSize: pendingHeaderSize,
+                                    partyLabel,
+                                    'partyLabel',
+                                    fontSize: partyHeaderSize,
                                     align: pw.TextAlign.right,
                                     bold: true,
                                     color: _textPrimary,
@@ -487,20 +492,8 @@ abstract final class PdfService {
                                 ),
                                 height: rowPt,
                               ),
-                              // Party name: image if Urdu, text if Latin
                               _td(
-                                pw.Align(
-                                  alignment:
-                                      _directionForMixedText(e.partyName) ==
-                                          pw.TextDirection.rtl
-                                      ? pw.Alignment.centerRight
-                                      : pw.Alignment.centerLeft,
-                                  child: textOrImage(
-                                    e.partyName,
-                                    'p:${e.partyName}',
-                                    fontSize: partyNameSize,
-                                  ),
-                                ),
+                                numText(formatDecimal(e.pendingPayment)),
                                 height: rowPt,
                               ),
                               _td(
@@ -515,8 +508,20 @@ abstract final class PdfService {
                                 numText(formatDecimal(e.value3)),
                                 height: rowPt,
                               ),
+                              // Party name: image if Urdu, text if Latin
                               _td(
-                                numText(formatDecimal(e.pendingPayment)),
+                                pw.Align(
+                                  alignment:
+                                      _directionForMixedText(e.partyName) ==
+                                          pw.TextDirection.rtl
+                                      ? pw.Alignment.centerRight
+                                      : pw.Alignment.centerLeft,
+                                  child: textOrImage(
+                                    e.partyName,
+                                    'p:${e.partyName}',
+                                    fontSize: partyNameSize,
+                                  ),
+                                ),
                                 height: rowPt,
                               ),
                             ],
@@ -538,12 +543,13 @@ abstract final class PdfService {
                               _td(pw.SizedBox(), height: summaryFooterPt),
                               _td(
                                 pw.Text(
-                                  'TOTAL',
+                                  formatDecimal(sumP),
+                                  textAlign: pw.TextAlign.right,
                                   textDirection: pw.TextDirection.ltr,
                                   style: pw.TextStyle(
                                     font: latin.bold,
                                     fontSize: summarySize,
-                                    color: _primary,
+                                    color: _textPrimary,
                                   ),
                                 ),
                                 height: summaryFooterPt,
@@ -552,14 +558,21 @@ abstract final class PdfService {
                               _td(pw.SizedBox(), height: summaryFooterPt),
                               _td(pw.SizedBox(), height: summaryFooterPt),
                               _td(
-                                pw.Text(
-                                  formatDecimal(sumP),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.bold,
-                                    fontSize: summarySize,
-                                    color: _textPrimary,
+                                pw.Align(
+                                  alignment: pw.Alignment.centerRight,
+                                  child: pw.Padding(
+                                    padding: const pw.EdgeInsets.only(
+                                      right: pendingHeaderRightInsetPt,
+                                    ),
+                                    child: pw.Text(
+                                      'TOTAL',
+                                      textDirection: pw.TextDirection.ltr,
+                                      style: pw.TextStyle(
+                                        font: latin.bold,
+                                        fontSize: summarySize,
+                                        color: _primary,
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 height: summaryFooterPt,
