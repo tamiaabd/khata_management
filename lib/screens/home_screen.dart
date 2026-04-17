@@ -27,6 +27,29 @@ class _HomeScreenState extends State<HomeScreen> {
   String _appVersion = '';
   int? _partyFocusEntryId;
 
+  Future<_PdfAction?> _showPdfOptions() {
+    return showModalBottomSheet<_PdfAction>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.save_alt_outlined),
+              title: const Text('Save PDF'),
+              onTap: () => Navigator.of(context).pop(_PdfAction.save),
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_new_outlined),
+              title: const Text('Open PDF'),
+              onTap: () => Navigator.of(context).pop(_PdfAction.open),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -119,10 +142,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   LedgerTotals _totals(List<LedgerEntry> entries) {
     var p = 0.0;
+    var v1 = 0.0;
+    var v2 = 0.0;
+    var v3 = 0.0;
     for (final e in entries) {
       p += e.pendingPayment;
+      v1 += e.value1;
+      v2 += e.value2;
+      v3 += e.value3;
     }
-    return LedgerTotals(pending: p);
+    return LedgerTotals(pending: p, value1: v1, value2: v2, value3: v3);
   }
 
 
@@ -222,22 +251,42 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Save PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined),
             onPressed: () async {
+              final action = await _showPdfOptions();
+              if (action == null || !context.mounted) return;
               final company = await (db.select(
                 db.companies,
               )..where((t) => t.id.equals(_companyId))).getSingle();
               if (context.mounted) {
                 final s = context.read<SettingsProvider>();
-                await PdfService.sharePdf(
-                  context: context,
-                  database: db,
-                  companyId: _companyId,
-                  companyName: company.companyName,
-                  urduFont: s.urduFont,
-                  englishFont: s.englishFont,
-                  value1Label: s.value1Label,
-                  value2Label: s.value2Label,
-                  value3Label: s.value3Label,
-                );
+                if (action == _PdfAction.save) {
+                  final file = await PdfService.savePdf(
+                    context: context,
+                    database: db,
+                    companyId: _companyId,
+                    companyName: company.companyName,
+                    urduFont: s.urduFont,
+                    englishFont: s.englishFont,
+                    value1Label: s.value1Label,
+                    value2Label: s.value2Label,
+                    value3Label: s.value3Label,
+                  );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Saved PDF: ${file.path}')),
+                  );
+                } else {
+                  await PdfService.openPdf(
+                    context: context,
+                    database: db,
+                    companyId: _companyId,
+                    companyName: company.companyName,
+                    urduFont: s.urduFont,
+                    englishFont: s.englishFont,
+                    value1Label: s.value1Label,
+                    value2Label: s.value2Label,
+                    value3Label: s.value3Label,
+                  );
+                }
               }
             },
           ),
@@ -348,6 +397,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+enum _PdfAction { save, open }
 
 class _PaperSheet extends StatelessWidget {
   const _PaperSheet({required this.child});

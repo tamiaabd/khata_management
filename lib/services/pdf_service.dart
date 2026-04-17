@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -301,8 +305,14 @@ abstract final class PdfService {
     final totalPages = pages.length;
 
     double sumP = 0;
+    double sumV1 = 0;
+    double sumV2 = 0;
+    double sumV3 = 0;
     for (final e in entries) {
       sumP += e.pendingPayment;
+      sumV1 += e.value1;
+      sumV2 += e.value2;
+      sumV3 += e.value3;
     }
 
     final doc = pw.Document();
@@ -554,9 +564,45 @@ abstract final class PdfService {
                                 ),
                                 height: summaryFooterPt,
                               ),
-                              _td(pw.SizedBox(), height: summaryFooterPt),
-                              _td(pw.SizedBox(), height: summaryFooterPt),
-                              _td(pw.SizedBox(), height: summaryFooterPt),
+                              _td(
+                                pw.Text(
+                                  formatDecimal(sumV1),
+                                  textAlign: pw.TextAlign.right,
+                                  textDirection: pw.TextDirection.ltr,
+                                  style: pw.TextStyle(
+                                    font: latin.bold,
+                                    fontSize: summarySize,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                height: summaryFooterPt,
+                              ),
+                              _td(
+                                pw.Text(
+                                  formatDecimal(sumV2),
+                                  textAlign: pw.TextAlign.right,
+                                  textDirection: pw.TextDirection.ltr,
+                                  style: pw.TextStyle(
+                                    font: latin.bold,
+                                    fontSize: summarySize,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                height: summaryFooterPt,
+                              ),
+                              _td(
+                                pw.Text(
+                                  formatDecimal(sumV3),
+                                  textAlign: pw.TextAlign.right,
+                                  textDirection: pw.TextDirection.ltr,
+                                  style: pw.TextStyle(
+                                    font: latin.bold,
+                                    fontSize: summarySize,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                height: summaryFooterPt,
+                              ),
                               _td(
                                 pw.Align(
                                   alignment: pw.Alignment.centerRight,
@@ -723,5 +769,74 @@ abstract final class PdfService {
         '_',
       ),
     );
+  }
+
+  static Future<File> savePdf({
+    required BuildContext context,
+    required AppDatabase database,
+    required int companyId,
+    required String companyName,
+    required String urduFont,
+    required String englishFont,
+    String value1Label = 'Value 1',
+    String value2Label = 'Value 2',
+    String value3Label = 'Value 3',
+  }) async {
+    final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
+    final format = _a4Format();
+    final bytes = await buildPdf(
+      format: format,
+      companyName: companyName,
+      entries: entries,
+      generatedAt: DateTime.now(),
+      urduFont: urduFont,
+      englishFont: englishFont,
+      value1Label: value1Label,
+      value2Label: value2Label,
+      value3Label: value3Label,
+    );
+
+    final fileName = '${companyName}_ledger.pdf'.replaceAll(
+      RegExp(r'[^\w\-]+'),
+      '_',
+    );
+    final dir = await _pdfSaveDirectory();
+    await dir.create(recursive: true);
+    final file = File(p.join(dir.path, fileName));
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
+
+  static Future<void> openPdf({
+    required BuildContext context,
+    required AppDatabase database,
+    required int companyId,
+    required String companyName,
+    required String urduFont,
+    required String englishFont,
+    String value1Label = 'Value 1',
+    String value2Label = 'Value 2',
+    String value3Label = 'Value 3',
+  }) async {
+    final file = await savePdf(
+      context: context,
+      database: database,
+      companyId: companyId,
+      companyName: companyName,
+      urduFont: urduFont,
+      englishFont: englishFont,
+      value1Label: value1Label,
+      value2Label: value2Label,
+      value3Label: value3Label,
+    );
+    await OpenFilex.open(file.path);
+  }
+
+  static Future<Directory> _pdfSaveDirectory() async {
+    final downloads = await getDownloadsDirectory();
+    if (downloads != null) {
+      return downloads;
+    }
+    return getApplicationDocumentsDirectory();
   }
 }
