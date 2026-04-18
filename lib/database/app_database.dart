@@ -23,13 +23,32 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             await m.createTable(settings);
+          }
+          if (from < 3) {
+            await m.addColumn(ledgerEntries, ledgerEntries.startsNewPage);
+          }
+          if (from < 4) {
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS ix_ledger_entries_company_serial '
+              'ON ledger_entries (company_id, serial_number)',
+            );
+          }
+          if (from < 5) {
+            await m.addColumn(ledgerEntries, ledgerEntries.pageCategory);
+            await customStatement(
+              "UPDATE ledger_entries SET page_category = "
+              "(SELECT value FROM settings WHERE key = 'entry_category' LIMIT 1) "
+              'WHERE id = (SELECT MIN(id) FROM ledger_entries) '
+              "AND EXISTS (SELECT 1 FROM settings WHERE key = 'entry_category' "
+              "AND trim(value) != '')",
+            );
           }
         },
         beforeOpen: (details) async {

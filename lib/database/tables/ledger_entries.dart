@@ -13,5 +13,8 @@ class LedgerEntries extends Table {
   RealColumn get value2 => real().withDefault(const Constant(0))();
   RealColumn get value3 => real().withDefault(const Constant(0))();
   RealColumn get pendingPayment => real().withDefault(const Constant(0))();
+  BoolColumn get startsNewPage => boolean().withDefault(const Constant(false))();
+  /// Title for the on-screen/PDF sheet whose first row is this entry (trimmed in UI).
+  TextColumn get pageCategory => text().withDefault(const Constant(''))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

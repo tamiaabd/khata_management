@@ -402,6 +402,33 @@ class $LedgerEntriesTable extends LedgerEntries
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _startsNewPageMeta = const VerificationMeta(
+    'startsNewPage',
+  );
+  @override
+  late final GeneratedColumn<bool> startsNewPage = GeneratedColumn<bool>(
+    'starts_new_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("starts_new_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _pageCategoryMeta = const VerificationMeta(
+    'pageCategory',
+  );
+  @override
+  late final GeneratedColumn<String> pageCategory = GeneratedColumn<String>(
+    'page_category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -424,6 +451,8 @@ class $LedgerEntriesTable extends LedgerEntries
     value2,
     value3,
     pendingPayment,
+    startsNewPage,
+    pageCategory,
     createdAt,
   ];
   @override
@@ -493,6 +522,24 @@ class $LedgerEntriesTable extends LedgerEntries
         ),
       );
     }
+    if (data.containsKey('starts_new_page')) {
+      context.handle(
+        _startsNewPageMeta,
+        startsNewPage.isAcceptableOrUnknown(
+          data['starts_new_page']!,
+          _startsNewPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('page_category')) {
+      context.handle(
+        _pageCategoryMeta,
+        pageCategory.isAcceptableOrUnknown(
+          data['page_category']!,
+          _pageCategoryMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -540,6 +587,14 @@ class $LedgerEntriesTable extends LedgerEntries
         DriftSqlType.double,
         data['${effectivePrefix}pending_payment'],
       )!,
+      startsNewPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}starts_new_page'],
+      )!,
+      pageCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_category'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -562,6 +617,10 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
   final double value2;
   final double value3;
   final double pendingPayment;
+  final bool startsNewPage;
+
+  /// Title for the on-screen/PDF sheet whose first row is this entry (trimmed in UI).
+  final String pageCategory;
   final DateTime createdAt;
   const LedgerEntry({
     required this.id,
@@ -572,6 +631,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
     required this.value2,
     required this.value3,
     required this.pendingPayment,
+    required this.startsNewPage,
+    required this.pageCategory,
     required this.createdAt,
   });
   @override
@@ -585,6 +646,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
     map['value2'] = Variable<double>(value2);
     map['value3'] = Variable<double>(value3);
     map['pending_payment'] = Variable<double>(pendingPayment);
+    map['starts_new_page'] = Variable<bool>(startsNewPage);
+    map['page_category'] = Variable<String>(pageCategory);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -599,6 +662,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
       value2: Value(value2),
       value3: Value(value3),
       pendingPayment: Value(pendingPayment),
+      startsNewPage: Value(startsNewPage),
+      pageCategory: Value(pageCategory),
       createdAt: Value(createdAt),
     );
   }
@@ -617,6 +682,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
       value2: serializer.fromJson<double>(json['value2']),
       value3: serializer.fromJson<double>(json['value3']),
       pendingPayment: serializer.fromJson<double>(json['pendingPayment']),
+      startsNewPage: serializer.fromJson<bool>(json['startsNewPage']),
+      pageCategory: serializer.fromJson<String>(json['pageCategory']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -632,6 +699,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
       'value2': serializer.toJson<double>(value2),
       'value3': serializer.toJson<double>(value3),
       'pendingPayment': serializer.toJson<double>(pendingPayment),
+      'startsNewPage': serializer.toJson<bool>(startsNewPage),
+      'pageCategory': serializer.toJson<String>(pageCategory),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -645,6 +714,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
     double? value2,
     double? value3,
     double? pendingPayment,
+    bool? startsNewPage,
+    String? pageCategory,
     DateTime? createdAt,
   }) => LedgerEntry(
     id: id ?? this.id,
@@ -655,6 +726,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
     value2: value2 ?? this.value2,
     value3: value3 ?? this.value3,
     pendingPayment: pendingPayment ?? this.pendingPayment,
+    startsNewPage: startsNewPage ?? this.startsNewPage,
+    pageCategory: pageCategory ?? this.pageCategory,
     createdAt: createdAt ?? this.createdAt,
   );
   LedgerEntry copyWithCompanion(LedgerEntriesCompanion data) {
@@ -671,6 +744,12 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
       pendingPayment: data.pendingPayment.present
           ? data.pendingPayment.value
           : this.pendingPayment,
+      startsNewPage: data.startsNewPage.present
+          ? data.startsNewPage.value
+          : this.startsNewPage,
+      pageCategory: data.pageCategory.present
+          ? data.pageCategory.value
+          : this.pageCategory,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -686,6 +765,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
           ..write('value2: $value2, ')
           ..write('value3: $value3, ')
           ..write('pendingPayment: $pendingPayment, ')
+          ..write('startsNewPage: $startsNewPage, ')
+          ..write('pageCategory: $pageCategory, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -701,6 +782,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
     value2,
     value3,
     pendingPayment,
+    startsNewPage,
+    pageCategory,
     createdAt,
   );
   @override
@@ -715,6 +798,8 @@ class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
           other.value2 == this.value2 &&
           other.value3 == this.value3 &&
           other.pendingPayment == this.pendingPayment &&
+          other.startsNewPage == this.startsNewPage &&
+          other.pageCategory == this.pageCategory &&
           other.createdAt == this.createdAt);
 }
 
@@ -727,6 +812,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
   final Value<double> value2;
   final Value<double> value3;
   final Value<double> pendingPayment;
+  final Value<bool> startsNewPage;
+  final Value<String> pageCategory;
   final Value<DateTime> createdAt;
   const LedgerEntriesCompanion({
     this.id = const Value.absent(),
@@ -737,6 +824,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
     this.value2 = const Value.absent(),
     this.value3 = const Value.absent(),
     this.pendingPayment = const Value.absent(),
+    this.startsNewPage = const Value.absent(),
+    this.pageCategory = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   LedgerEntriesCompanion.insert({
@@ -748,6 +837,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
     this.value2 = const Value.absent(),
     this.value3 = const Value.absent(),
     this.pendingPayment = const Value.absent(),
+    this.startsNewPage = const Value.absent(),
+    this.pageCategory = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : companyId = Value(companyId),
        serialNumber = Value(serialNumber);
@@ -760,6 +851,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
     Expression<double>? value2,
     Expression<double>? value3,
     Expression<double>? pendingPayment,
+    Expression<bool>? startsNewPage,
+    Expression<String>? pageCategory,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -771,6 +864,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
       if (value2 != null) 'value2': value2,
       if (value3 != null) 'value3': value3,
       if (pendingPayment != null) 'pending_payment': pendingPayment,
+      if (startsNewPage != null) 'starts_new_page': startsNewPage,
+      if (pageCategory != null) 'page_category': pageCategory,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -784,6 +879,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
     Value<double>? value2,
     Value<double>? value3,
     Value<double>? pendingPayment,
+    Value<bool>? startsNewPage,
+    Value<String>? pageCategory,
     Value<DateTime>? createdAt,
   }) {
     return LedgerEntriesCompanion(
@@ -795,6 +892,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
       value2: value2 ?? this.value2,
       value3: value3 ?? this.value3,
       pendingPayment: pendingPayment ?? this.pendingPayment,
+      startsNewPage: startsNewPage ?? this.startsNewPage,
+      pageCategory: pageCategory ?? this.pageCategory,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -826,6 +925,12 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
     if (pendingPayment.present) {
       map['pending_payment'] = Variable<double>(pendingPayment.value);
     }
+    if (startsNewPage.present) {
+      map['starts_new_page'] = Variable<bool>(startsNewPage.value);
+    }
+    if (pageCategory.present) {
+      map['page_category'] = Variable<String>(pageCategory.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -843,6 +948,8 @@ class LedgerEntriesCompanion extends UpdateCompanion<LedgerEntry> {
           ..write('value2: $value2, ')
           ..write('value3: $value3, ')
           ..write('pendingPayment: $pendingPayment, ')
+          ..write('startsNewPage: $startsNewPage, ')
+          ..write('pageCategory: $pageCategory, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1377,6 +1484,8 @@ typedef $$LedgerEntriesTableCreateCompanionBuilder =
       Value<double> value2,
       Value<double> value3,
       Value<double> pendingPayment,
+      Value<bool> startsNewPage,
+      Value<String> pageCategory,
       Value<DateTime> createdAt,
     });
 typedef $$LedgerEntriesTableUpdateCompanionBuilder =
@@ -1389,6 +1498,8 @@ typedef $$LedgerEntriesTableUpdateCompanionBuilder =
       Value<double> value2,
       Value<double> value3,
       Value<double> pendingPayment,
+      Value<bool> startsNewPage,
+      Value<String> pageCategory,
       Value<DateTime> createdAt,
     });
 
@@ -1461,6 +1572,16 @@ class $$LedgerEntriesTableFilterComposer
 
   ColumnFilters<double> get pendingPayment => $composableBuilder(
     column: $table.pendingPayment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get startsNewPage => $composableBuilder(
+    column: $table.startsNewPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageCategory => $composableBuilder(
+    column: $table.pageCategory,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1537,6 +1658,16 @@ class $$LedgerEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get startsNewPage => $composableBuilder(
+    column: $table.startsNewPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageCategory => $composableBuilder(
+    column: $table.pageCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1597,6 +1728,16 @@ class $$LedgerEntriesTableAnnotationComposer
 
   GeneratedColumn<double> get pendingPayment => $composableBuilder(
     column: $table.pendingPayment,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get startsNewPage => $composableBuilder(
+    column: $table.startsNewPage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pageCategory => $composableBuilder(
+    column: $table.pageCategory,
     builder: (column) => column,
   );
 
@@ -1663,6 +1804,8 @@ class $$LedgerEntriesTableTableManager
                 Value<double> value2 = const Value.absent(),
                 Value<double> value3 = const Value.absent(),
                 Value<double> pendingPayment = const Value.absent(),
+                Value<bool> startsNewPage = const Value.absent(),
+                Value<String> pageCategory = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => LedgerEntriesCompanion(
                 id: id,
@@ -1673,6 +1816,8 @@ class $$LedgerEntriesTableTableManager
                 value2: value2,
                 value3: value3,
                 pendingPayment: pendingPayment,
+                startsNewPage: startsNewPage,
+                pageCategory: pageCategory,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -1685,6 +1830,8 @@ class $$LedgerEntriesTableTableManager
                 Value<double> value2 = const Value.absent(),
                 Value<double> value3 = const Value.absent(),
                 Value<double> pendingPayment = const Value.absent(),
+                Value<bool> startsNewPage = const Value.absent(),
+                Value<String> pageCategory = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => LedgerEntriesCompanion.insert(
                 id: id,
@@ -1695,6 +1842,8 @@ class $$LedgerEntriesTableTableManager
                 value2: value2,
                 value3: value3,
                 pendingPayment: pendingPayment,
+                startsNewPage: startsNewPage,
+                pageCategory: pageCategory,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

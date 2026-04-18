@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,9 +7,11 @@ import '../providers/settings_provider.dart';
 import '../services/pdf_service.dart';
 import '../services/update_service.dart';
 import '../utils/constants.dart';
+import '../utils/ledger_pagination.dart';
 
 import '../widgets/ledger_table.dart';
 import '../widgets/page_header.dart';
+import '../widgets/sheet_page_category_field.dart';
 import '../widgets/responsive_ledger_scroll.dart';
 import '../widgets/summary_footer.dart';
 import 'settings_screen.dart';
@@ -26,6 +29,72 @@ class _HomeScreenState extends State<HomeScreen> {
   final _updateService = UpdateService();
   String _appVersion = '';
   int? _partyFocusEntryId;
+  Company? _company;
+
+  Future<void> _printLedgerPage(
+    BuildContext context,
+    AppDatabase db,
+    String companyName,
+    int pageIndex,
+  ) async {
+    if (companyName.isEmpty || !context.mounted) return;
+    final s = context.read<SettingsProvider>();
+    await PdfService.printLedgerPage(
+      context: context,
+      database: db,
+      companyId: _companyId,
+      companyName: companyName,
+      urduFont: s.urduFont,
+      englishFont: s.englishFont,
+      value1Label: s.value1Label,
+      value2Label: s.value2Label,
+      value3Label: s.value3Label,
+      pageIndex: pageIndex,
+    );
+  }
+
+  Future<void> _exportLedgerPagePdf(
+    BuildContext context,
+    AppDatabase db,
+    String companyName,
+    int pageIndex,
+  ) async {
+    if (companyName.isEmpty) return;
+    final action = await _showPdfOptions();
+    if (action == null || !context.mounted) return;
+    final s = context.read<SettingsProvider>();
+    if (action == _PdfAction.save) {
+      final file = await PdfService.saveLedgerPagePdf(
+        context: context,
+        database: db,
+        companyId: _companyId,
+        companyName: companyName,
+        urduFont: s.urduFont,
+        englishFont: s.englishFont,
+        value1Label: s.value1Label,
+        value2Label: s.value2Label,
+        value3Label: s.value3Label,
+        pageIndex: pageIndex,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved PDF: ${file.path}')));
+    } else {
+      await PdfService.openLedgerPagePdf(
+        context: context,
+        database: db,
+        companyId: _companyId,
+        companyName: companyName,
+        urduFont: s.urduFont,
+        englishFont: s.englishFont,
+        value1Label: s.value1Label,
+        value2Label: s.value2Label,
+        value3Label: s.value3Label,
+        pageIndex: pageIndex,
+      );
+    }
+  }
 
   Future<_PdfAction?> _showPdfOptions() {
     return showModalBottomSheet<_PdfAction>(
@@ -54,7 +123,19 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadAppTitle();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdates());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdates();
+      _loadCompany();
+    });
+  }
+
+  Future<void> _loadCompany() async {
+    final db = context.read<AppDatabase>();
+    final company = await (db.select(
+      db.companies,
+    )..where((t) => t.id.equals(_companyId))).getSingleOrNull();
+    if (!mounted) return;
+    setState(() => _company = company);
   }
 
   Future<void> _loadAppTitle() async {
@@ -154,8 +235,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return LedgerTotals(pending: p, value1: v1, value2: v2, value3: v3);
   }
 
-
-
   Future<void> _addRow(AppDatabase db) async {
     final serial = await db.ledgerDao.nextSerialNumber(_companyId);
     final id = await db.ledgerDao.insertEntry(
@@ -164,7 +243,6 @@ class _HomeScreenState extends State<HomeScreen> {
         serialNumber: serial,
       ),
     );
-    await db.companyDao.touchCompanyUpdatedAt(_companyId);
     if (!mounted) return;
     setState(() => _partyFocusEntryId = id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -184,6 +262,45 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _startNewPage(AppDatabase db) async {
+    final existing = await db.ledgerDao.entriesForCompanyOnce(_companyId);
+    final pages = LedgerPagination.pagesWithBreaks(existing);
+    var copied = '';
+    if (pages.isNotEmpty) {
+      final last = pages.last;
+      if (last.isNotEmpty) {
+        copied = last.first.pageCategory;
+      }
+    }
+    final serial = await db.ledgerDao.nextSerialNumber(_companyId);
+    await db.ledgerDao.insertEntry(
+      LedgerEntriesCompanion.insert(
+        companyId: _companyId,
+        serialNumber: serial,
+        startsNewPage: const Value(true),
+        pageCategory: Value(copied),
+      ),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('New page started. The previous sheet is unchanged.'),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
@@ -194,10 +311,11 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: IconButton(
           icon: const Icon(Icons.settings_outlined),
           tooltip: 'Settings',
-          onPressed: () {
-            Navigator.of(context).push(
+          onPressed: () async {
+            await Navigator.of(context).push<void>(
               MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             );
+            if (mounted) await _loadCompany();
           },
         ),
         title: Text.rich(
@@ -214,9 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 24,
             letterSpacing: 0.2,
@@ -298,17 +414,11 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, entrySnap) {
           final entries = entrySnap.data ?? [];
           final totals = _totals(entries);
+          final company = _company;
+          final pages = LedgerPagination.pagesWithBreaks(entries);
+          final totalPages = pages.length;
 
-          return StreamBuilder<Company>(
-            stream: (db.select(
-              db.companies,
-            )..where((t) => t.id.equals(_companyId))).watchSingle(),
-            builder: (context, companySnap) {
-              final company = companySnap.data;
-              final pages = LedgerLayout.paginate(entries);
-              final totalPages = pages.length;
-
-              return Column(
+          return Column(
                 children: [
                   Expanded(
                     child: ResponsiveA4Scroll(
@@ -321,31 +431,111 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      4,
+                                      4,
+                                      4,
+                                      0,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Print page ${p + 1}',
+                                          icon: const Icon(
+                                            Icons.print_outlined,
+                                            size: 22,
+                                          ),
+                                          onPressed: company == null
+                                              ? null
+                                              : () => _printLedgerPage(
+                                                    context,
+                                                    db,
+                                                    company.companyName,
+                                                    p,
+                                                  ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            company?.companyName ?? '',
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            textDirection: TextDirection.ltr,
+                                            style: TextStyle(
+                                              fontSize:
+                                                  LedgerLayout.headerFontSize,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                              fontFamily: context.select<
+                                                SettingsProvider,
+                                                String
+                                              >((s) => s.englishFont),
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'PDF page ${p + 1}',
+                                          icon: const Icon(
+                                            Icons.picture_as_pdf_outlined,
+                                            size: 22,
+                                          ),
+                                          onPressed: company == null
+                                              ? null
+                                              : () => _exportLedgerPagePdf(
+                                                    context,
+                                                    db,
+                                                    company.companyName,
+                                                    p,
+                                                  ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   PageHeader(
-                                    companyName: company?.companyName ?? '',
+                                    centerSection: pages[p].isEmpty
+                                        ? Center(
+                                            child: Text(
+                                              'Page Category',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize:
+                                                    LedgerLayout.headerFontSize,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textSecondary,
+                                                fontFamily: context.select<
+                                                  SettingsProvider,
+                                                  String
+                                                >((s) => s.englishFont),
+                                              ),
+                                            ),
+                                          )
+                                        : SheetPageCategoryField(
+                                            anchor: pages[p].first,
+                                            db: db,
+                                          ),
                                     date: DateTime.now(),
-                                    pageLabel:
-                                        'Page ${p + 1} of $totalPages',
+                                    pageLabel: 'Page ${p + 1} of $totalPages',
                                   ),
                                   const LedgerTableHeaderRow(),
                                   LedgerTable(
                                     db: db,
                                     companyId: _companyId,
                                     entries: pages[p],
-                                    partyFocusEntryId:
-                                        p == pages.length - 1
-                                            ? _partyFocusEntryId
-                                            : null,
+                                    partyFocusEntryId: p == pages.length - 1
+                                        ? _partyFocusEntryId
+                                        : null,
                                     onAddRow: p == pages.length - 1
                                         ? () => _addRow(db)
                                         : null,
                                   ),
-                                  if (p == pages.length - 1)
-                                    SummaryFooter(totals: totals)
-                                  else
+                                  if (p != pages.length - 1)
                                     const SizedBox(
-                                        height: LedgerLayout
-                                            .summaryFooterHeight),
+                                      height:
+                                          LedgerLayout.summaryFooterHeight,
+                                    ),
                                 ],
                               ),
                             ),
@@ -354,6 +544,30 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
+                  ),
+                  LayoutBuilder(
+                    builder: (context, c) {
+                      final hPad = LedgerLayout.viewportHorizontalPadding(
+                        c.maxWidth,
+                      );
+                      final scale = responsiveA4LedgerScale(c.maxWidth);
+                      return Padding(
+                        padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 0),
+                        child: ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Transform.scale(
+                              scale: scale,
+                              alignment: Alignment.topCenter,
+                              child: SizedBox(
+                                width: LedgerLayout.a4Width,
+                                child: SummaryFooter(totals: totals),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   SafeArea(
                     top: false,
@@ -371,18 +585,48 @@ class _HomeScreenState extends State<HomeScreen> {
                               top: BorderSide(color: AppColors.gridLine),
                             ),
                           ),
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Tooltip(
+                                  message:
+                                      'Starts a new sheet after the current one. '
+                                      'Earlier pages stay exactly as they are.',
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onPressed: () => _startNewPage(db),
+                                    icon: const Icon(Icons.post_add_outlined),
+                                    label: const Text('Next page'),
+                                  ),
+                                ),
                               ),
-                            ),
-                            onPressed: () => _addRow(db),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Row'),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () => _addRow(db),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Add Row'),
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -390,8 +634,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               );
-            },
-          );
         },
       ),
     );

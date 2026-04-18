@@ -41,7 +41,6 @@ class SummaryFooter extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const SizedBox(width: _wSerial),
               Expanded(
                 flex: _flexNum,
                 child: Padding(
@@ -121,6 +120,7 @@ class SummaryFooter extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: _wSerial),
               const SizedBox(width: _wAction),
             ],
           ),

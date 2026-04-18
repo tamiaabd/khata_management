@@ -20,6 +20,7 @@ void main() {
     final settings = SettingsProvider(db);
     await settings.load();
     await tester.pumpWidget(KhataApp(database: db, settings: settings));
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.settings_outlined), findsOneWidget);

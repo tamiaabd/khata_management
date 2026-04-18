@@ -1,10 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../utils/constants.dart';
 
-/// Scrollable area that lays out ledger content at [LedgerLayout.a4Width] logical
-/// pixels (matching PDF column math), then scales uniformly with the viewport
-/// so the whole page resizes when the window size changes while keeping A4 proportions.
+/// Horizontal scale applied next to the scroll area (e.g. docked totals).
+double responsiveA4LedgerScale(double viewportWidth) {
+  final inset = LedgerLayout.viewportHorizontalPadding(viewportWidth);
+  final innerMaxW = math.max(0.0, viewportWidth - 2 * inset);
+  return math.min(1.0, innerMaxW / LedgerLayout.a4Width);
+}
+
+/// Scrollable A4-width ledger viewport with uniform horizontal scaling.
 class ResponsiveA4Scroll extends StatelessWidget {
   const ResponsiveA4Scroll({
     super.key,
@@ -19,20 +26,24 @@ class ResponsiveA4Scroll extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final inset =
-            LedgerLayout.viewportHorizontalPadding(constraints.maxWidth);
+        final inset = LedgerLayout.viewportHorizontalPadding(
+          constraints.maxWidth,
+        );
         return Scrollbar(
           controller: scrollController,
           thumbVisibility: true,
           child: SingleChildScrollView(
             controller: scrollController,
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 0),
-            child: FittedBox(
-              fit: BoxFit.fitWidth,
+            child: Align(
               alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: LedgerLayout.a4Width,
-                child: child,
+              child: FittedBox(
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: LedgerLayout.a4Width,
+                  child: child,
+                ),
               ),
             ),
           ),

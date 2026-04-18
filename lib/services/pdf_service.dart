@@ -14,6 +14,7 @@ import 'package:printing/printing.dart';
 import '../database/app_database.dart';
 import '../utils/formatters.dart';
 import '../utils/constants.dart';
+import '../utils/ledger_pagination.dart';
 
 /// A4 portrait, multi-page ledger with totals on the last page.
 /// Matches the on-screen home preview layout exactly.
@@ -32,12 +33,12 @@ abstract final class PdfService {
   /// UI logical pixels are 96-DPI; PDF points are 72-DPI.
   static const double _ptPerPx = 72.0 / 96.0; // 0.75
 
-  // Match AppColors exactly
-  static const _primaryLight = PdfColor(0.890, 0.949, 0.992); // #E3F2FD
-  static const _primary = PdfColor(0.129, 0.588, 0.953); // #2196F3
-  static const _textPrimary = PdfColor(0.051, 0.106, 0.165); // #0D1B2A
-  static const _textSecondary = PdfColor(0.361, 0.494, 0.651); // #5C7EA6
-  static const _gridLine = PdfColor(0.839, 0.918, 0.984); // #D6EAFB
+  // Print-first grayscale: no chroma, strong B&W laser/inkjet contrast.
+  static const _headerBand = PdfColor(0.88, 0.88, 0.88); // header / summary strip
+  static const _borderStrong = PdfColor(0, 0, 0); // outer frame, emphasis
+  static const _textPrimary = PdfColor(0, 0, 0); // body & headings
+  static const _textSecondary = PdfColor(0.38, 0.38, 0.38); // page meta
+  static const _gridLine = PdfColor(0.52, 0.52, 0.52); // rules & dividers
 
   /// Render scale for Urdu text images (higher = crisper text in PDF).
   static const double _renderScale = 3.0;
@@ -142,6 +143,9 @@ abstract final class PdfService {
   // Public API
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// When [onlyPageIndex] is set (0-based), the PDF contains that single sheet
+  /// from the same pagination as the full ledger; totals appear only when that
+  /// sheet is the last page of the full document.
   static Future<Uint8List> buildPdf({
     required PdfPageFormat format,
     required String companyName,
@@ -152,7 +156,18 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    int? onlyPageIndex,
   }) async {
+    if (onlyPageIndex != null) {
+      final pages = LedgerPagination.pdfPagesWithBreaks(entries);
+      if (onlyPageIndex < 0 || onlyPageIndex >= pages.length) {
+        throw ArgumentError.value(
+          onlyPageIndex,
+          'onlyPageIndex',
+          'must be >= 0 and < ${pages.length}',
+        );
+      }
+    }
     const partyLabel = LedgerLayout.partyHeaderText;
     const pendingLabel = LedgerLayout.pendingHeaderText;
     final latin = await _loadEnglishFonts(englishFont);
@@ -168,14 +183,20 @@ abstract final class PdfService {
     // package cannot render natively.
     final Map<String, ({pw.MemoryImage img, double w, double h})> urduImgs = {};
 
-    if (_isUrdu(companyName)) {
-      urduImgs['company'] = await _renderUrduImage(
-        companyName,
-        fontFamily: urduFont,
-        pdfFontSize: companySize,
-        color: const Color(0xFF1A1A1A),
-        bold: true,
-      );
+    final headerTitles = <String>{};
+    for (final page in LedgerPagination.pdfPagesWithBreaks(entries)) {
+      headerTitles.add(_pdfSheetHeaderTitle(page));
+    }
+    for (final t in headerTitles) {
+      if (_isUrdu(t)) {
+        urduImgs[_hdrImgKey(t)] = await _renderUrduImage(
+          t,
+          fontFamily: urduFont,
+          pdfFontSize: companySize,
+          color: Colors.black,
+          bold: true,
+        );
+      }
     }
 
     if (_isUrdu(partyLabel)) {
@@ -183,7 +204,7 @@ abstract final class PdfService {
         partyLabel,
         fontFamily: _fixedUrduHeaderFont,
         pdfFontSize: partyHeaderSize,
-        color: const Color(0xFF1A1A1A),
+        color: Colors.black,
         bold: true,
       );
     }
@@ -192,7 +213,7 @@ abstract final class PdfService {
         pendingLabel,
         fontFamily: _fixedUrduHeaderFont,
         pdfFontSize: pendingHeaderSize,
-        color: const Color(0xFF1A1A1A),
+        color: Colors.black,
         bold: true,
       );
     }
@@ -207,7 +228,7 @@ abstract final class PdfService {
           e.partyName,
           fontFamily: urduFont,
           pdfFontSize: partyNameSize,
-          color: const Color(0xFF1A1A1A),
+          color: Colors.black,
         );
       }
     }
@@ -215,7 +236,6 @@ abstract final class PdfService {
     final doc = _buildDocument(
       latin: latin,
       format: format,
-      companyName: companyName,
       entries: entries,
       generatedAt: generatedAt,
       value1Label: value1Label,
@@ -225,6 +245,7 @@ abstract final class PdfService {
       partyNameSize: partyNameSize,
       partyHeaderSize: partyHeaderSize,
       pendingHeaderSize: pendingHeaderSize,
+      onlyPageIndex: onlyPageIndex,
     );
 
     return Uint8List.fromList(await doc.save());
@@ -237,7 +258,6 @@ abstract final class PdfService {
   static pw.Document _buildDocument({
     required ({pw.Font regular, pw.Font bold}) latin,
     required PdfPageFormat format,
-    required String companyName,
     required List<LedgerEntry> entries,
     required DateTime generatedAt,
     required String value1Label,
@@ -247,6 +267,7 @@ abstract final class PdfService {
     required double partyNameSize,
     required double partyHeaderSize,
     required double pendingHeaderSize,
+    int? onlyPageIndex,
   }) {
     const partyLabel = LedgerLayout.partyHeaderText;
     const pendingLabel = LedgerLayout.pendingHeaderText;
@@ -271,7 +292,11 @@ abstract final class PdfService {
         s,
         textAlign: align,
         textDirection: pw.TextDirection.ltr,
-        style: pw.TextStyle(font: latin.regular, fontSize: bodySize),
+        style: pw.TextStyle(
+          font: latin.regular,
+          fontSize: bodySize,
+          color: _textPrimary,
+        ),
       );
     }
 
@@ -301,8 +326,11 @@ abstract final class PdfService {
       );
     }
 
-    final pages = LedgerLayout.paginatePdf(entries);
-    final totalPages = pages.length;
+    final fullPages = LedgerPagination.pdfPagesWithBreaks(entries);
+    final totalPages = fullPages.length;
+    final pageIndices = onlyPageIndex != null
+        ? <int>[onlyPageIndex]
+        : List<int>.generate(fullPages.length, (i) => i);
 
     double sumP = 0;
     double sumV1 = 0;
@@ -317,10 +345,11 @@ abstract final class PdfService {
 
     final doc = pw.Document();
 
-    for (var p = 0; p < pages.length; p++) {
-      final slice = pages[p];
-      final isLast = p == pages.length - 1;
+    for (final p in pageIndices) {
+      final slice = fullPages[p];
+      final isLast = p == fullPages.length - 1;
       final pageIndex = p + 1;
+      final pageHeaderCenter = _pdfSheetHeaderTitle(slice);
 
       doc.addPage(
         pw.Page(
@@ -333,7 +362,7 @@ abstract final class PdfService {
                   borderRadius: const pw.BorderRadius.all(
                     pw.Radius.circular(8),
                   ),
-                  border: pw.Border.all(color: _primary, width: 0.8),
+                  border: pw.Border.all(color: _borderStrong, width: 1),
                 ),
                 padding: pw.EdgeInsets.fromLTRB(
                   frameHPaddingPt,
@@ -344,7 +373,7 @@ abstract final class PdfService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
-                    // ── Page header: page# left | company center | date right ──
+                    // ── Page header: page# left | page category center | date right ──
                     pw.SizedBox(
                       height: pageHeaderPt,
                       child: pw.Column(
@@ -368,8 +397,8 @@ abstract final class PdfService {
                                 flex: 2,
                                 child: pw.Center(
                                   child: textOrImage(
-                                    companyName,
-                                    'company',
+                                    pageHeaderCenter,
+                                    _hdrImgKey(pageHeaderCenter),
                                     fontSize: companySize,
                                     align: pw.TextAlign.center,
                                     bold: true,
@@ -407,7 +436,9 @@ abstract final class PdfService {
                         ),
                       ),
                       columnWidths: {
-                        0: pw.FixedColumnWidth(serialPt),
+                        0: pw.FlexColumnWidth(
+                          LedgerLayout.colValueFlex.toDouble(),
+                        ),
                         1: pw.FlexColumnWidth(
                           LedgerLayout.colValueFlex.toDouble(),
                         ),
@@ -418,24 +449,15 @@ abstract final class PdfService {
                           LedgerLayout.colValueFlex.toDouble(),
                         ),
                         4: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
-                        ),
-                        5: pw.FlexColumnWidth(
                           LedgerLayout.colPartyFlex.toDouble(),
                         ),
+                        5: pw.FixedColumnWidth(serialPt),
                       },
                       children: [
                         // Header row
                         pw.TableRow(
-                          decoration: pw.BoxDecoration(color: _primaryLight),
+                          decoration: pw.BoxDecoration(color: _headerBand),
                           children: [
-                            _th(
-                              '#',
-                              latin.bold,
-                              headerSize,
-                              height: tableHeaderPt,
-                              align: pw.TextAlign.center,
-                            ),
                             // Pending label: image if Urdu, text if Latin
                             _td(
                               pw.Align(
@@ -489,19 +511,19 @@ abstract final class PdfService {
                               ),
                               height: tableHeaderPt,
                             ),
+                            _th(
+                              '#',
+                              latin.bold,
+                              headerSize,
+                              height: tableHeaderPt,
+                              align: pw.TextAlign.center,
+                            ),
                           ],
                         ),
                         // Data rows
                         ...slice.map(
                           (e) => pw.TableRow(
                             children: [
-                              _td(
-                                numText(
-                                  '${e.serialNumber}',
-                                  align: pw.TextAlign.center,
-                                ),
-                                height: rowPt,
-                              ),
                               _td(
                                 numText(formatDecimal(e.pendingPayment)),
                                 height: rowPt,
@@ -519,18 +541,31 @@ abstract final class PdfService {
                                 height: rowPt,
                               ),
                               // Party name: image if Urdu, text if Latin
+                              // Same right inset as party header so title and values align.
                               _td(
-                                pw.Align(
-                                  alignment:
-                                      _directionForMixedText(e.partyName) ==
-                                          pw.TextDirection.rtl
-                                      ? pw.Alignment.centerRight
-                                      : pw.Alignment.centerLeft,
-                                  child: textOrImage(
-                                    e.partyName,
-                                    'p:${e.partyName}',
-                                    fontSize: partyNameSize,
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.only(
+                                    right: pendingHeaderRightInsetPt,
                                   ),
+                                  child: pw.Align(
+                                    alignment:
+                                        _directionForMixedText(e.partyName) ==
+                                            pw.TextDirection.rtl
+                                        ? pw.Alignment.centerRight
+                                        : pw.Alignment.centerLeft,
+                                    child: textOrImage(
+                                      e.partyName,
+                                      'p:${e.partyName}',
+                                      fontSize: partyNameSize,
+                                    ),
+                                  ),
+                                ),
+                                height: rowPt,
+                              ),
+                              _td(
+                                numText(
+                                  '${e.serialNumber}',
+                                  align: pw.TextAlign.center,
                                 ),
                                 height: rowPt,
                               ),
@@ -541,7 +576,7 @@ abstract final class PdfService {
                         if (isLast)
                           pw.TableRow(
                             decoration: pw.BoxDecoration(
-                              color: _primaryLight,
+                              color: _headerBand,
                               border: pw.Border(
                                 top: pw.BorderSide(
                                   color: _gridLine,
@@ -550,7 +585,6 @@ abstract final class PdfService {
                               ),
                             ),
                             children: [
-                              _td(pw.SizedBox(), height: summaryFooterPt),
                               _td(
                                 pw.Text(
                                   formatDecimal(sumP),
@@ -616,13 +650,14 @@ abstract final class PdfService {
                                       style: pw.TextStyle(
                                         font: latin.bold,
                                         fontSize: summarySize,
-                                        color: _primary,
+                                        color: _borderStrong,
                                       ),
                                     ),
                                   ),
                                 ),
                                 height: summaryFooterPt,
                               ),
+                              _td(pw.SizedBox(), height: summaryFooterPt),
                             ],
                           ),
                       ],
@@ -687,6 +722,14 @@ abstract final class PdfService {
   }
 
   /// True when [text] contains Arabic/Urdu script codepoints.
+  static String _pdfSheetHeaderTitle(List<LedgerEntry> slice) {
+    if (slice.isEmpty) return 'Page Category';
+    final raw = slice.first.pageCategory.trim();
+    return raw.isEmpty ? 'Page Category' : raw;
+  }
+
+  static String _hdrImgKey(String title) => 'hdr:$title';
+
   static bool _isUrdu(String text) {
     for (final cp in text.runes) {
       if ((cp >= 0x0600 && cp <= 0x06FF) ||
@@ -722,8 +765,9 @@ abstract final class PdfService {
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
+    final stem = _ledgerPdfStem(companyName);
     await Printing.layoutPdf(
-      name: '${companyName}_ledger.pdf'.replaceAll(RegExp(r'[^\w\-]+'), '_'),
+      name: '$stem.pdf',
       onLayout: (f) => buildPdf(
         format: format,
         companyName: companyName,
@@ -734,6 +778,39 @@ abstract final class PdfService {
         value1Label: value1Label,
         value2Label: value2Label,
         value3Label: value3Label,
+      ),
+    );
+  }
+
+  /// Print a single on-screen ledger page (same pagination as the full PDF).
+  static Future<void> printLedgerPage({
+    required BuildContext context,
+    required AppDatabase database,
+    required int companyId,
+    required String companyName,
+    required String urduFont,
+    required String englishFont,
+    String value1Label = 'Value 1',
+    String value2Label = 'Value 2',
+    String value3Label = 'Value 3',
+    required int pageIndex,
+  }) async {
+    final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
+    final format = _a4Format();
+    final stem = _ledgerPdfStem(companyName);
+    await Printing.layoutPdf(
+      name: '${stem}_page${pageIndex + 1}.pdf',
+      onLayout: (f) => buildPdf(
+        format: format,
+        companyName: companyName,
+        entries: entries,
+        generatedAt: DateTime.now(),
+        urduFont: urduFont,
+        englishFont: englishFont,
+        value1Label: value1Label,
+        value2Label: value2Label,
+        value3Label: value3Label,
+        onlyPageIndex: pageIndex,
       ),
     );
   }
@@ -796,10 +873,45 @@ abstract final class PdfService {
       value3Label: value3Label,
     );
 
-    final fileName = '${companyName}_ledger.pdf'.replaceAll(
-      RegExp(r'[^\w\-]+'),
-      '_',
+    final stem = _ledgerPdfStem(companyName);
+    final fileName = '$stem.pdf';
+    final dir = await _pdfSaveDirectory();
+    await dir.create(recursive: true);
+    final file = File(p.join(dir.path, fileName));
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
+
+  /// Save a PDF for one on-screen ledger page only.
+  static Future<File> saveLedgerPagePdf({
+    required BuildContext context,
+    required AppDatabase database,
+    required int companyId,
+    required String companyName,
+    required String urduFont,
+    required String englishFont,
+    String value1Label = 'Value 1',
+    String value2Label = 'Value 2',
+    String value3Label = 'Value 3',
+    required int pageIndex,
+  }) async {
+    final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
+    final format = _a4Format();
+    final bytes = await buildPdf(
+      format: format,
+      companyName: companyName,
+      entries: entries,
+      generatedAt: DateTime.now(),
+      urduFont: urduFont,
+      englishFont: englishFont,
+      value1Label: value1Label,
+      value2Label: value2Label,
+      value3Label: value3Label,
+      onlyPageIndex: pageIndex,
     );
+
+    final stem = _ledgerPdfStem(companyName);
+    final fileName = '${stem}_page${pageIndex + 1}.pdf';
     final dir = await _pdfSaveDirectory();
     await dir.create(recursive: true);
     final file = File(p.join(dir.path, fileName));
@@ -830,6 +942,38 @@ abstract final class PdfService {
       value3Label: value3Label,
     );
     await OpenFilex.open(file.path);
+  }
+
+  /// Build and open a one-page PDF for [pageIndex].
+  static Future<void> openLedgerPagePdf({
+    required BuildContext context,
+    required AppDatabase database,
+    required int companyId,
+    required String companyName,
+    required String urduFont,
+    required String englishFont,
+    String value1Label = 'Value 1',
+    String value2Label = 'Value 2',
+    String value3Label = 'Value 3',
+    required int pageIndex,
+  }) async {
+    final file = await saveLedgerPagePdf(
+      context: context,
+      database: database,
+      companyId: companyId,
+      companyName: companyName,
+      urduFont: urduFont,
+      englishFont: englishFont,
+      value1Label: value1Label,
+      value2Label: value2Label,
+      value3Label: value3Label,
+      pageIndex: pageIndex,
+    );
+    await OpenFilex.open(file.path);
+  }
+
+  static String _ledgerPdfStem(String companyName) {
+    return '${companyName}_ledger'.replaceAll(RegExp(r'[^\w\-]+'), '_');
   }
 
   static Future<Directory> _pdfSaveDirectory() async {

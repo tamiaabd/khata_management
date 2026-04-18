@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/formatters.dart';
 
 class PageHeader extends StatelessWidget {
   const PageHeader({
     super.key,
-    required this.companyName,
+    required this.centerSection,
     required this.date,
     this.pageLabel,
   });
 
-  final String companyName;
+  /// Middle of the header row (page category field or read-only label).
+  final Widget centerSection;
   final DateTime date;
   final String? pageLabel;
 
@@ -26,7 +25,7 @@ class PageHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Align(
@@ -43,21 +42,7 @@ class PageHeader extends StatelessWidget {
                       : const SizedBox.shrink(),
                 ),
               ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  companyName,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: LedgerLayout.headerFontSize,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: context.select<SettingsProvider, String>(
-                      (s) => s.englishFont,
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(flex: 2, child: centerSection),
               Expanded(
                 child: Align(
                   alignment: Alignment.centerRight,

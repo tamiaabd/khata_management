@@ -65,18 +65,6 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Row(
           children: [
-            SizedBox(
-              width: _wSerial,
-              child: Text(
-                '#',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: LedgerLayout.tableHeaderFontSize,
-                  color: AppColors.primary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
             Expanded(
               flex: _flexNum,
               child: const _StaticUrduHeaderText(
@@ -126,6 +114,18 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 fontFamily: 'BombayBlackUnicode',
                 fontSize: LedgerLayout.partyHeaderFontSize,
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
+              ),
+            ),
+            SizedBox(
+              width: _wSerial,
+              child: Text(
+                '#',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: LedgerLayout.tableHeaderFontSize,
+                  color: AppColors.primary,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
             const SizedBox(width: _wAction),
@@ -436,7 +436,6 @@ class _LedgerRowState extends State<_LedgerRow> {
 
   Future<void> _persist(LedgerEntry next) async {
     await widget.db.ledgerDao.updateEntry(next);
-    await widget.db.companyDao.touchCompanyUpdatedAt(widget.companyId);
   }
 
   /// Single source of truth for persistence — prevents out-of-order async replaces
@@ -481,7 +480,6 @@ class _LedgerRowState extends State<_LedgerRow> {
     );
     if (ok == true && mounted) {
       await widget.db.ledgerDao.deleteEntry(widget.entry.id);
-      await widget.db.companyDao.touchCompanyUpdatedAt(widget.companyId);
     }
   }
 
@@ -490,7 +488,6 @@ class _LedgerRowState extends State<_LedgerRow> {
     final urduFont = context.select<SettingsProvider, String>(
       (s) => s.urduFont,
     );
-    final dir = directionForMixedText(_party.text);
     final englishPartyStyle =
         Theme.of(context).textTheme.bodyLarge?.copyWith(
           fontSize: LedgerLayout.partyNameFontSize,
@@ -502,35 +499,24 @@ class _LedgerRowState extends State<_LedgerRow> {
           height: 1,
           color: AppColors.textPrimary,
         );
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.gridLine)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onLongPress: _confirmDelete,
-          hoverColor: AppColors.gridLineLight.withValues(alpha: 0.5),
-          splashColor: AppColors.primaryLight.withValues(alpha: 0.3),
-          child: SizedBox(
-            height: LedgerLayout.rowHeight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: _wSerial,
-                    child: Text(
-                      '${widget.entry.serialNumber}',
-                      textAlign: TextAlign.center,
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(
-                        fontSize: LedgerLayout.tableBodyFontSize,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
+    return RepaintBoundary(
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.gridLine)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onLongPress: _confirmDelete,
+            hoverColor: AppColors.gridLineLight.withValues(alpha: 0.5),
+            splashColor: AppColors.primaryLight.withValues(alpha: 0.3),
+            child: SizedBox(
+              height: LedgerLayout.rowHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                   Expanded(
                     flex: _flexNum,
                     child: NumericLedgerField(
@@ -583,35 +569,50 @@ class _LedgerRowState extends State<_LedgerRow> {
                   ),
                   Expanded(
                     flex: _flexParty,
-                    child: Directionality(
-                      textDirection: dir,
-                      child: TextField(
-                        controller: _party,
-                        focusNode: widget.partyFocus,
-                        minLines: 1,
-                        maxLines: 1,
-                        textInputAction: TextInputAction.next,
-                        onEditingComplete: () => _v3Focus.requestFocus(),
-                        style: dir == TextDirection.rtl
-                            ? TextStyle(
-                                fontSize: LedgerLayout.partyNameFontSize,
-                                fontFamily: urduFont,
-                                height: 1,
-                                color: AppColors.textPrimary,
-                              )
-                            : englishPartyStyle,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 0,
+                    child: ListenableBuilder(
+                      listenable: _party,
+                      builder: (context, _) {
+                        final dir = directionForMixedText(_party.text);
+                        return Directionality(
+                          textDirection: dir,
+                          child: TextField(
+                            controller: _party,
+                            focusNode: widget.partyFocus,
+                            minLines: 1,
+                            maxLines: 1,
+                            textInputAction: TextInputAction.next,
+                            onEditingComplete: () => _v3Focus.requestFocus(),
+                            style: dir == TextDirection.rtl
+                                ? TextStyle(
+                                    fontSize: LedgerLayout.partyNameFontSize,
+                                    fontFamily: urduFont,
+                                    height: 1,
+                                    color: AppColors.textPrimary,
+                                  )
+                                : englishPartyStyle,
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 0,
+                              ),
+                            ),
+                            onChanged: (_) => _schedulePersist(),
                           ),
-                        ),
-                        onChanged: (_) {
-                          setState(() {});
-                          _schedulePersist();
-                        },
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: _wSerial,
+                    child: Text(
+                      '${widget.entry.serialNumber}',
+                      textAlign: TextAlign.center,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: LedgerLayout.tableBodyFontSize,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -635,6 +636,7 @@ class _LedgerRowState extends State<_LedgerRow> {
           ),
         ),
       ),
+    ),
     );
   }
 }
