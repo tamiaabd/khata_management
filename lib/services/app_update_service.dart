@@ -153,10 +153,7 @@ class AppUpdateService {
     if (remote == null) return false;
 
     final current = await resolveCurrentVersion();
-    if (!remote.isNewerThan(
-      appVersion: current.version,
-      appBuildNumber: current.build,
-    )) {
+    if (!remote.isVersionNewerThan(current.version)) {
       return false;
     }
 
@@ -199,10 +196,7 @@ class AppUpdateService {
     }
 
     final current = await resolveCurrentVersion();
-    return remote.isNewerThan(
-      appVersion: current.version,
-      appBuildNumber: current.build,
-    )
+    return remote.isVersionNewerThan(current.version)
         ? WindowsUpdateCheckState.updateAvailable
         : WindowsUpdateCheckState.upToDate;
   }

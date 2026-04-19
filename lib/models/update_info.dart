@@ -51,6 +51,16 @@ class UpdateManifest {
     return rb > lb;
   }
 
+  /// Semantic `major.minor.patch` comparison only.
+  ///
+  /// Useful on platforms where app build numbers are not reliably exposed at
+  /// runtime (for example, some Windows package metadata paths).
+  bool isVersionNewerThan(String appVersion) {
+    final remoteV = _parseSemver(version);
+    final localV = _parseSemver(appVersion);
+    return _compareSemverLists(remoteV, localV) > 0;
+  }
+
   bool isCurrentBelowMinSupported(String appVersion) {
     final min = minSupportedVersion;
     if (min == null || min.isEmpty) return false;
