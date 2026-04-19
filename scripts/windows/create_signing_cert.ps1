@@ -1,6 +1,7 @@
 param(
   [string]$CertName = "KhataManagementCodeSign",
-  [string]$Publisher = "CN=Saari Technologies",
+  # Must match pubspec msix_config `publisher` (SignerSign fails if they differ).
+  [string]$Publisher = "CN=KhataManagement",
   [string]$Password = "ChangeThisPassword123!"
 )
 

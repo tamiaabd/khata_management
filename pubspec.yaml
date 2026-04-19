@@ -69,8 +69,8 @@ flutter:
 msix_config:
   display_name: Virtual Manager
   publisher_display_name: Saari Technologies
-  # Must match the Subject of the code-signing .pfx (see scripts/windows/create_signing_cert.ps1).
-  publisher: CN=Saari Technologies
+  # Must exactly match the Subject of the code-signing .pfx (GitHub WIN_CERT_PFX).
+  publisher: CN=KhataManagement
   identity_name: com.saaritech.khata.management
   msix_version: 1.4.0.1
   execution_alias: khata_management
