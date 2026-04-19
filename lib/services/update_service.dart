@@ -154,12 +154,16 @@ class UpdateService {
 
   /// Uninstalls older `com.saaritech.khata.management*` builds (different publisher
   /// hash → 0x80073cf3 if you only open the .msix), then runs [Add-AppxPackage].
+  ///
+  /// The installer **must** be started via `cmd /c start` so it is not a child of
+  /// this process. Otherwise [Remove-AppxPackage] tears down this app and kills the
+  /// PowerShell script before [Add-AppxPackage] runs (nothing visible, update repeats).
   Future<bool> _launchWindowsMsixWithConflictRemoval(File msixFile) async {
     try {
       final msixForPs = msixFile.path.replaceAll("'", "''");
       final script = r'''
 $ErrorActionPreference = 'Continue'
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 2
 Get-AppxPackage | Where-Object { $_.PackageFullName -like 'com.saaritech.khata.management*' } | ForEach-Object {
   Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
 }
@@ -172,9 +176,16 @@ Add-AppxPackage -Path 'MSIX_PATH_PLACEHOLDER'
       );
       await scriptFile.writeAsString(script, flush: true);
 
+      const ps =
+          r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe';
       await Process.start(
-        'powershell.exe',
+        'cmd.exe',
         [
+          '/c',
+          'start',
+          'KhataUpdate',
+          '/MIN',
+          ps,
           '-NoProfile',
           '-ExecutionPolicy',
           'Bypass',

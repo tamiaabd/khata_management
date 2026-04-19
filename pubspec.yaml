@@ -74,5 +74,6 @@ msix_config:
   identity_name: com.saaritech.khata.management
   msix_version: 1.4.0.1
   execution_alias: khata_management
-  capabilities: internetClient
+  # runFullTrust: allow spawning cmd/PowerShell for in-app MSIX updates.
+  capabilities: internetClient, runFullTrust
   install_certificate: false
