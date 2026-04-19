@@ -39,8 +39,12 @@ class UpdateService {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
       lines.add('');
       lines.add(
-        'If the installer says another build is already installed (error 0x80073cf3), '
-        'open Settings → Apps, uninstall Virtual Manager, then run the downloaded .msix again.',
+        'The updater will try to remove older Virtual Manager packages, then install. '
+        'This window may close during install.',
+      );
+      lines.add(
+        'If that still fails (0x80073cf3), uninstall Virtual Manager from Settings → Apps, '
+        'then use Check for Updates again.',
       );
     }
     return lines.join('\n');
@@ -140,8 +144,52 @@ class UpdateService {
       return false;
     }
 
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      return _launchWindowsMsixWithConflictRemoval(file);
+    }
+
     final result = await OpenFilex.open(file.path);
     return result.type == ResultType.done;
+  }
+
+  /// Uninstalls older `com.saaritech.khata.management*` builds (different publisher
+  /// hash → 0x80073cf3 if you only open the .msix), then runs [Add-AppxPackage].
+  Future<bool> _launchWindowsMsixWithConflictRemoval(File msixFile) async {
+    try {
+      final msixForPs = msixFile.path.replaceAll("'", "''");
+      final script = r'''
+$ErrorActionPreference = 'Continue'
+Start-Sleep -Seconds 3
+Get-AppxPackage | Where-Object { $_.PackageFullName -like 'com.saaritech.khata.management*' } | ForEach-Object {
+  Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+}
+$ErrorActionPreference = 'Stop'
+Add-AppxPackage -Path 'MSIX_PATH_PLACEHOLDER'
+'''.replaceAll('MSIX_PATH_PLACEHOLDER', msixForPs);
+
+      final scriptFile = File(
+        path.join(msixFile.parent.path, 'khata_install_update.ps1'),
+      );
+      await scriptFile.writeAsString(script, flush: true);
+
+      await Process.start(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-WindowStyle',
+          'Normal',
+          '-File',
+          scriptFile.path,
+        ],
+        mode: ProcessStartMode.detached,
+      );
+      return true;
+    } catch (_) {
+      final result = await OpenFilex.open(msixFile.path);
+      return result.type == ResultType.done;
+    }
   }
 
   Future<File?> _downloadAsset(
