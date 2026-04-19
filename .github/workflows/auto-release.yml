@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+# MSIX upgrades: keep the same WIN_CERT_PFX / password across releases whenever possible.
+# Rotating the signing cert changes the publisher hash; users must uninstall the old app once (0x80073cf3).
+
 jobs:
   build_windows_msix:
     runs-on: windows-latest

@@ -28,6 +28,33 @@ class UpdateInfo {
 }
 
 class UpdateService {
+  /// Text for the "Update available" dialog (includes Windows MSIX upgrade hint).
+  static String updateAvailableDialogBody(UpdateInfo info) {
+    final lines = <String>[
+      'Current: ${info.currentVersion}+${info.currentBuild}',
+      'Latest: ${info.latestVersion}+${info.latestBuild}',
+      '',
+      'Do you want to download and install the latest version?',
+    ];
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      lines.add('');
+      lines.add(
+        'If the installer says another build is already installed (error 0x80073cf3), '
+        'open Settings → Apps, uninstall Virtual Manager, then run the downloaded .msix again.',
+      );
+    }
+    return lines.join('\n');
+  }
+
+  /// Shown when [downloadAndInstall] could not launch the installer.
+  static String installLaunchFailedMessage() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      return 'Could not start the installer. If Windows reports 0x80073cf3, '
+          'uninstall Virtual Manager from Settings → Apps, then open the downloaded .msix again.';
+    }
+    return 'Could not start update installer.';
+  }
+
   Future<({String version, String build})> resolveCurrentVersion() async {
     final package = await PackageInfo.fromPlatform();
     const buildName = String.fromEnvironment('FLUTTER_BUILD_NAME');
@@ -87,7 +114,7 @@ class UpdateService {
     switch (defaultTargetPlatform) {
       case TargetPlatform.windows:
         final windows = json['windows'] as Map<String, dynamic>?;
-        return windows?['zip_url'] as String?;
+        return windows?['msix_url'] as String?;
       case TargetPlatform.android:
         final android = json['android'] as Map<String, dynamic>?;
         return android?['apk_url'] as String?;

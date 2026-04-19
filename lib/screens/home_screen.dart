@@ -158,9 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
       barrierDismissible: !AppUpdateConfig.forceUpdate,
       builder: (context) => AlertDialog(
         title: const Text('Update available'),
-        content: Text(
-          'Current: ${info.currentVersion}+${info.currentBuild}\nLatest: ${info.latestVersion}+${info.latestBuild}\n\nDo you want to download and install the latest version?',
-        ),
+        content: Text(UpdateService.updateAvailableDialogBody(info)),
         actions: [
           if (!AppUpdateConfig.forceUpdate)
             TextButton(
@@ -178,7 +176,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final started = await _runUpdateWithProgress(info);
     if (!mounted || started) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Could not start update installer.')),
+      SnackBar(
+        content: Text(UpdateService.installLaunchFailedMessage()),
+        duration: const Duration(seconds: 8),
+      ),
     );
   }
 

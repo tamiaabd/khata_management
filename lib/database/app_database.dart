@@ -32,7 +32,15 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(settings);
           }
           if (from < 3) {
-            await m.addColumn(ledgerEntries, ledgerEntries.startsNewPage);
+            // user_version can lag behind the real schema (e.g. interrupted
+            // migration); avoid duplicate ADD COLUMN errors.
+            final hasStartsNewPage = await customSelect(
+              "SELECT 1 FROM pragma_table_info('ledger_entries') "
+              "WHERE name = 'starts_new_page' LIMIT 1",
+            ).get();
+            if (hasStartsNewPage.isEmpty) {
+              await m.addColumn(ledgerEntries, ledgerEntries.startsNewPage);
+            }
           }
           if (from < 4) {
             await customStatement(
@@ -41,7 +49,13 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 5) {
-            await m.addColumn(ledgerEntries, ledgerEntries.pageCategory);
+            final hasPageCategory = await customSelect(
+              "SELECT 1 FROM pragma_table_info('ledger_entries') "
+              "WHERE name = 'page_category' LIMIT 1",
+            ).get();
+            if (hasPageCategory.isEmpty) {
+              await m.addColumn(ledgerEntries, ledgerEntries.pageCategory);
+            }
             await customStatement(
               "UPDATE ledger_entries SET page_category = "
               "(SELECT value FROM settings WHERE key = 'entry_category' LIMIT 1) "

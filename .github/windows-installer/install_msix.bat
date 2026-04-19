@@ -40,6 +40,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo Removing any previously installed Virtual Manager package if present...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-AppxPackage | Where-Object { $_.PackageFullName -like 'com.saaritech.khata.management*' } | ForEach-Object { Write-Host ('Removing ' + $_.PackageFullName); Remove-AppxPackage -Package $_.PackageFullName }"
+
 echo Installing MSIX package...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-AppxPackage -Path '%~dp0%MSIX_FILE%'"
 if errorlevel 1 (

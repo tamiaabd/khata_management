@@ -2,7 +2,7 @@ name: khata_management
 description: "this project is created for shuab bhai for his gass business"
 publish_to: 'none'
 
-version: 1.4.2+6
+version: 1.4.0+1
 
 environment:
   sdk: ^3.11.1
@@ -69,8 +69,10 @@ flutter:
 msix_config:
   display_name: Virtual Manager
   publisher_display_name: Saari Technologies
+  # Must match the Subject of the code-signing .pfx (see scripts/windows/create_signing_cert.ps1).
+  publisher: CN=Saari Technologies
   identity_name: com.saaritech.khata.management
-  msix_version: 1.4.2.6
+  msix_version: 1.4.0.1
   execution_alias: khata_management
   capabilities: internetClient
   install_certificate: false

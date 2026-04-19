@@ -13,7 +13,12 @@ abstract final class AppColors {
 }
 
 abstract final class AppUpdateConfig {
-  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  /// CI passes `--dart-define=SUPABASE_URL=...`. Default is the production
+  /// project URL so local `flutter run` / builds still fetch `latest.json`.
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://ftlaqzgfcxlqnnvojooi.supabase.co',
+  );
   static const String supabaseBucket = 'builds';
   static const bool forceUpdate = false;
 }
