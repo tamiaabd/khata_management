@@ -19,8 +19,19 @@ abstract final class AppUpdateConfig {
     'SUPABASE_URL',
     defaultValue: 'https://ftlaqzgfcxlqnnvojooi.supabase.co',
   );
+
+  /// Storage bucket: tagged builds, `latest.json`, and in-app update files
+  /// (`version.json`, `latest.msix`, `latest.apk`) at the bucket root.
   static const String supabaseBucket = 'builds';
+
+  /// Same bucket as [supabaseBucket]; update metadata lives next to versioned folders.
+  static const String supabaseUpdatesBucket = supabaseBucket;
+
   static const bool forceUpdate = false;
+
+  /// `{SUPABASE_URL}/storage/v1/object/public/builds/version.json`
+  static String get versionManifestUrl =>
+      '$supabaseUrl/storage/v1/object/public/$supabaseUpdatesBucket/version.json';
 }
 
 abstract final class LedgerLayout {

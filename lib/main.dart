@@ -9,6 +9,7 @@ import 'app.dart';
 import 'database/app_database.dart';
 import 'providers/settings_provider.dart';
 
+/// In-app updates: [AppUpdateService] + [SplashScreen] (`checkUpdateFlag`, `checkForUpdates`).
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) {

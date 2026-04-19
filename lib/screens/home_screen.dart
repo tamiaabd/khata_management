@@ -1,11 +1,11 @@
-import 'package:drift/drift.dart' show Value;
+﻿import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../database/app_database.dart';
 import '../providers/settings_provider.dart';
+import '../services/app_update_service.dart';
 import '../services/pdf_service.dart';
-import '../services/update_service.dart';
 import '../utils/constants.dart';
 import '../utils/ledger_pagination.dart';
 
@@ -26,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const int _companyId = 1;
   final _scroll = ScrollController();
-  final _updateService = UpdateService();
   String _appVersion = '';
   int? _partyFocusEntryId;
   Company? _company;
@@ -124,7 +123,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadAppTitle();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForUpdates();
+      final msg = AppUpdateService.instance.takePostUpdateSuccessMessage();
+      if (msg != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('App updated successfully to v$msg')),
+        );
+      }
+      final err = AppUpdateService.instance.takePostUpdateErrorMessage();
+      if (err != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Last update failed. $err'),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
       _loadCompany();
     });
   }
@@ -139,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadAppTitle() async {
-    final current = await _updateService.resolveCurrentVersion();
+    final current = await AppUpdateService.instance.resolveCurrentVersion();
     if (!mounted) return;
     setState(() => _appVersion = current.version);
   }
@@ -148,78 +161,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _scroll.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkForUpdates() async {
-    final info = await _updateService.checkForUpdate();
-    if (!mounted || info == null) return;
-    final shouldUpdate = await showDialog<bool>(
-      context: context,
-      barrierDismissible: !AppUpdateConfig.forceUpdate,
-      builder: (context) => AlertDialog(
-        title: const Text('Update available'),
-        content: Text(UpdateService.updateAvailableDialogBody(info)),
-        actions: [
-          if (!AppUpdateConfig.forceUpdate)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Later'),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Update now'),
-          ),
-        ],
-      ),
-    );
-    if (shouldUpdate != true) return;
-    final started = await _runUpdateWithProgress(info);
-    if (!mounted || started) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(UpdateService.installLaunchFailedMessage()),
-        duration: const Duration(seconds: 8),
-      ),
-    );
-  }
-
-  Future<bool> _runUpdateWithProgress(UpdateInfo info) async {
-    final progress = ValueNotifier<double>(0);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          title: const Text('Downloading update'),
-          content: ValueListenableBuilder<double>(
-            valueListenable: progress,
-            builder: (context, value, _) {
-              final percent = (value * 100).toStringAsFixed(0);
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(value: value > 0 ? value : null),
-                  const SizedBox(height: 12),
-                  Text('Progress: $percent%'),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-
-    final started = await _updateService.downloadAndInstall(
-      info,
-      onProgress: (value) => progress.value = value,
-    );
-    if (mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-    }
-    progress.dispose();
-    return started;
   }
 
   LedgerTotals _totals(List<LedgerEntry> entries) {
@@ -667,3 +608,8 @@ class _PaperSheet extends StatelessWidget {
     );
   }
 }
+
+
+
+
+

@@ -202,6 +202,27 @@ jobs:
           upload_to_supabase "$APK_FILE" "app-release.apk"
           upload_to_supabase "$ZIP_FILE" "khata_windows_bundle.zip"
 
+          upload_release() {
+            local file_path="$1"
+            local object_key="$2"
+            echo "Uploading builds/${object_key}..."
+            HTTP_STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              -X POST \
+              "${SUPABASE_URL}/storage/v1/object/builds/${object_key}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/octet-stream" \
+              -H "x-upsert: true" \
+              --data-binary "@${file_path}")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "builds/${object_key} uploaded."
+            else
+              echo "Failed builds/${object_key}. HTTP: ${HTTP_STATUS}"; cat /tmp/resp.txt; exit 1
+            fi
+          }
+
+          upload_release "$MSIX_FILE" "latest.msix"
+          upload_release "$APK_FILE" "latest.apk"
+
       - name: Update latest.json in Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -230,6 +251,35 @@ jobs:
             --data-binary "@/tmp/latest.json")
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "latest.json updated."
+          else
+            echo "Failed. HTTP: ${HTTP_STATUS}"; cat /tmp/resp.txt; exit 1
+          fi
+
+      - name: Update version.json in Supabase (builds bucket root)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cat > /tmp/version.json << EOF
+          {
+            "version": "${BASE_VERSION}",
+            "buildNumber": ${{ github.run_number }},
+            "downloadUrlWindows": "${SUPABASE_URL}/storage/v1/object/public/builds/latest.msix",
+            "downloadUrlAndroid": "${SUPABASE_URL}/storage/v1/object/public/builds/latest.apk",
+            "releaseNotes": "Release ${TAG_NAME}",
+            "mandatory": false,
+            "minSupportedVersion": "1.0.0"
+          }
+          EOF
+          HTTP_STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST \
+            "${SUPABASE_URL}/storage/v1/object/builds/version.json" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            --data-binary "@/tmp/version.json")
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "builds/version.json updated."
           else
             echo "Failed. HTTP: ${HTTP_STATUS}"; cat /tmp/resp.txt; exit 1
           fi

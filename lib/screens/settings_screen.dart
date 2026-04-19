@@ -1,13 +1,14 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../database/app_database.dart';
 import '../providers/settings_provider.dart';
-import '../services/update_service.dart';
+import '../services/app_update_service.dart';
 import '../utils/constants.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,7 +20,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const int _companyId = 1;
-  final _updateService = UpdateService();
 
   static const List<String> _urduFonts = [
     'BombayBlackUnicode',
@@ -201,80 +201,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _checkForUpdatesManually(BuildContext context) async {
-    final info = await _updateService.checkForUpdate();
-    if (!context.mounted) return;
-
-    if (info == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You already have the latest version.')),
-      );
-      return;
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final status = await AppUpdateService.instance.checkWindowsUpdateStatus();
+      if (!context.mounted) return;
+      if (status == WindowsUpdateCheckState.upToDate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You already have the latest version.')),
+        );
+        return;
+      }
+      if (status == WindowsUpdateCheckState.checkFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not check for updates. Check internet and try again.'),
+          ),
+        );
+        return;
+      }
     }
-
-    final shouldUpdate = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update available'),
-        content: Text(UpdateService.updateAvailableDialogBody(info)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Later'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Update now'),
-          ),
-        ],
-      ),
-    );
-    if (shouldUpdate != true || !context.mounted) return;
-    final started = await _runUpdateWithProgress(info);
-    if (!context.mounted || started) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(UpdateService.installLaunchFailedMessage()),
-        duration: const Duration(seconds: 8),
-      ),
-    );
-  }
-
-  Future<bool> _runUpdateWithProgress(UpdateInfo info) async {
-    final progress = ValueNotifier<double>(0);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          title: const Text('Downloading update'),
-          content: ValueListenableBuilder<double>(
-            valueListenable: progress,
-            builder: (context, value, _) {
-              final percent = (value * 100).toStringAsFixed(0);
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(value: value > 0 ? value : null),
-                  const SizedBox(height: 12),
-                  Text('Progress: $percent%'),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-
-    final started = await _updateService.downloadAndInstall(
-      info,
-      onProgress: (value) => progress.value = value,
-    );
-    if (!mounted) return started;
-    Navigator.of(context, rootNavigator: true).pop();
-    progress.dispose();
-    return started;
+    await AppUpdateService.instance.checkForUpdates(context);
   }
 }
 
@@ -466,3 +411,6 @@ class _FontCard extends StatelessWidget {
     );
   }
 }
+
+
+

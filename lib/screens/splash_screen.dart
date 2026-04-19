@@ -1,7 +1,6 @@
-import 'dart:async';
+﻿import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
-
+import '../services/app_update_service.dart';
 import '../utils/constants.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -17,12 +16,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => widget.child),
-      );
-    });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final sw = Stopwatch()..start();
+    await AppUpdateService.instance.checkUpdateFlag();
+    final rest = 2000 - sw.elapsedMilliseconds;
+    if (rest > 0) {
+      await Future<void>.delayed(Duration(milliseconds: rest));
+    }
+    if (!mounted) return;
+    await AppUpdateService.instance.checkForUpdates(context);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => widget.child),
+    );
   }
 
   @override
@@ -92,3 +101,4 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
+
