@@ -24,40 +24,62 @@ class PageHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: pageLabel != null
-                      ? Text(
-                          pageLabel!,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final totalW = constraints.maxWidth;
+              final centerW = totalW * 0.34;
+              final sideW = (totalW - centerW) / 2;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: sideW,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: pageLabel != null
+                          ? FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                pageLabel!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                textDirection: TextDirection.ltr,
+                                maxLines: 1,
+                                softWrap: false,
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  SizedBox(width: centerW, child: centerSection),
+                  SizedBox(
+                    width: sideW,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          dateStr,
                           style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
                           ),
                           textDirection: TextDirection.ltr,
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-              Expanded(flex: 2, child: centerSection),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    dateStr,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w500,
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
                     ),
-                    textDirection: TextDirection.ltr,
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           const Divider(height: 1, color: AppColors.gridLine),

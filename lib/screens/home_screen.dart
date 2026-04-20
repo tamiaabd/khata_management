@@ -26,9 +26,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const int _companyId = 1;
   final _scroll = ScrollController();
+  final _rightLedgerKeys = <int, GlobalKey<LedgerTableState>>{};
   String _appVersion = '';
   int? _partyFocusEntryId;
   Company? _company;
+
+  GlobalKey<LedgerTableState> _rightLedgerKeyForPage(int pageIndex) =>
+      _rightLedgerKeys.putIfAbsent(
+        pageIndex,
+        GlobalKey<LedgerTableState>.new,
+      );
 
   Future<void> _printLedgerPage(
     BuildContext context,
@@ -359,6 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final company = _company;
           final pages = LedgerPagination.pagesWithBreaks(entries);
           final totalPages = pages.length;
+          _rightLedgerKeys.removeWhere((k, _) => k >= pages.length);
 
           return Column(
                 children: [
@@ -461,17 +469,80 @@ class _HomeScreenState extends State<HomeScreen> {
                                     date: DateTime.now(),
                                     pageLabel: 'Page ${p + 1} of $totalPages',
                                   ),
-                                  const LedgerTableHeaderRow(),
-                                  LedgerTable(
-                                    db: db,
-                                    companyId: _companyId,
-                                    entries: pages[p],
-                                    partyFocusEntryId: p == pages.length - 1
-                                        ? _partyFocusEntryId
-                                        : null,
-                                    onAddRow: p == pages.length - 1
-                                        ? () => _addRow(db)
-                                        : null,
+                                  Builder(
+                                    builder: (context) {
+                                      final (left, right) =
+                                          LedgerLayout.splitSheetColumns(
+                                        pages[p],
+                                      );
+                                      final isLastPage =
+                                          p == pages.length - 1;
+                                      final rightKey = _rightLedgerKeyForPage(
+                                        p,
+                                      );
+                                      final bridgeToRightParty =
+                                          right.isNotEmpty
+                                          ? rightKey.currentState
+                                                ?.partyFocusForEntryId(
+                                                  right.first.id,
+                                                )
+                                          : null;
+                                      final onAdd = isLastPage
+                                          ? () => _addRow(db)
+                                          : null;
+                                      // RTL sheet: first serial block on the right,
+                                      // second block on the left (Row is LTR).
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                const LedgerTableHeaderRow(),
+                                                LedgerTable(
+                                                  key: rightKey,
+                                                  db: db,
+                                                  companyId: _companyId,
+                                                  entries: right,
+                                                  partyFocusEntryId: isLastPage
+                                                      ? _partyFocusEntryId
+                                                      : null,
+                                                  onAddRow: right.isNotEmpty
+                                                      ? onAdd
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                const LedgerTableHeaderRow(),
+                                                LedgerTable(
+                                                  db: db,
+                                                  companyId: _companyId,
+                                                  entries: left,
+                                                  partyFocusEntryId: isLastPage
+                                                      ? _partyFocusEntryId
+                                                      : null,
+                                                  focusAfterLastRowPending:
+                                                      bridgeToRightParty,
+                                                  onAddRow: right.isEmpty
+                                                      ? onAdd
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
                                   if (p != pages.length - 1)
                                     const SizedBox(

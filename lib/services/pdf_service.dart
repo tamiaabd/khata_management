@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -34,7 +35,11 @@ abstract final class PdfService {
   static const double _ptPerPx = 72.0 / 96.0; // 0.75
 
   // Print-first grayscale: no chroma, strong B&W laser/inkjet contrast.
-  static const _headerBand = PdfColor(0.88, 0.88, 0.88); // header / summary strip
+  static const _headerBand = PdfColor(
+    0.88,
+    0.88,
+    0.88,
+  ); // header / summary strip
   static const _borderStrong = PdfColor(0, 0, 0); // outer frame, emphasis
   static const _textPrimary = PdfColor(0, 0, 0); // body & headings
   static const _textSecondary = PdfColor(0.38, 0.38, 0.38); // page meta
@@ -144,8 +149,8 @@ abstract final class PdfService {
   // ─────────────────────────────────────────────────────────────────────────
 
   /// When [onlyPageIndex] is set (0-based), the PDF contains that single sheet
-  /// from the same pagination as the full ledger; totals appear only when that
-  /// sheet is the last page of the full document.
+  /// from the same pagination as the full ledger. In this mode, the footer
+  /// total row is always shown and sums only that selected sheet.
   static Future<Uint8List> buildPdf({
     required PdfPageFormat format,
     required String companyName,
@@ -176,7 +181,7 @@ abstract final class PdfService {
     final double partyHeaderSize = LedgerLayout.partyHeaderFontSize * _ptPerPx;
     final double pendingHeaderSize =
         LedgerLayout.pendingHeaderFontSize * _ptPerPx;
-    const double companySize = LedgerLayout.headerFontSize * _ptPerPx; // 15 pt
+    final double companySize = LedgerLayout.headerFontSize * _ptPerPx;
 
     // Pre-render all Urdu strings as images using Flutter's HarfBuzz engine.
     // This produces properly shaped/joined Nastaleeq text that the pdf
@@ -271,11 +276,10 @@ abstract final class PdfService {
   }) {
     const partyLabel = LedgerLayout.partyHeaderText;
     const pendingLabel = LedgerLayout.pendingHeaderText;
-    const bodySize = LedgerLayout.tableBodyFontSize * _ptPerPx; // 10.5 pt
-    const headerSize = LedgerLayout.tableHeaderFontSize * _ptPerPx; // 9.75 pt
-    const companySize = LedgerLayout.headerFontSize * _ptPerPx; // 15 pt
-    const summarySize = LedgerLayout.summaryFontSize * _ptPerPx; // 11.25 pt
-    const double serialPt = LedgerLayout.colSerialFixed * _ptPerPx; // 33 pt
+    final bodySize = LedgerLayout.tableBodyFontSize * _ptPerPx;
+    final headerSize = LedgerLayout.tableHeaderFontSize * _ptPerPx;
+    final companySize = LedgerLayout.headerFontSize * _ptPerPx;
+    final summarySize = LedgerLayout.summaryFontSize * _ptPerPx;
     const double pageHeaderPt = LedgerLayout.pageHeaderHeight * _ptPerPx;
     const double tableHeaderPt = LedgerLayout.tableHeaderHeight * _ptPerPx;
     const double rowPt = LedgerLayout.rowHeight * _ptPerPx;
@@ -283,15 +287,28 @@ abstract final class PdfService {
     const double sheetVPaddingPt = (LedgerLayout.sheetPadding * _ptPerPx) / 2.0;
     const double frameInsetPt = 10;
     const double frameHPaddingPt = 12;
-    const double pendingHeaderRightInsetPt =
-        LedgerLayout.colActionFixed * _ptPerPx;
-    final double frameVPaddingPt = (sheetVPaddingPt - frameInsetPt) + 8;
+    // Outer inset + inner padding must match [LedgerLayout.sheetPadding] (24pt
+    // total vertically) so [LedgerLayout.paginatePdf] row counts match the
+    // printable area (including [LedgerLayout.ledgerColumnsPerSheet]); surplus
+    // inner padding previously pushed the totals row past the bottom of the
+    // last page.
+    final double frameVPaddingPt = (sheetVPaddingPt - frameInsetPt).clamp(
+      0.0,
+      999.0,
+    );
 
-    pw.Widget numText(String s, {pw.TextAlign align = pw.TextAlign.right}) {
+    pw.Widget numText(
+      String s, {
+      pw.TextAlign align = pw.TextAlign.right,
+      int? maxLines,
+      bool? softWrap,
+    }) {
       return pw.Text(
         s,
         textAlign: align,
         textDirection: pw.TextDirection.ltr,
+        maxLines: maxLines,
+        softWrap: softWrap,
         style: pw.TextStyle(
           font: latin.regular,
           fontSize: bodySize,
@@ -305,23 +322,36 @@ abstract final class PdfService {
     pw.Widget textOrImage(
       String text,
       String imgKey, {
-      double fontSize = bodySize,
+      double? fontSize,
       pw.TextAlign align = pw.TextAlign.left,
+      pw.TextDirection? textDirection,
+      pw.Alignment imageAlignment = pw.Alignment.center,
       bool bold = false,
-      PdfColor color = _textPrimary,
+      PdfColor? color,
     }) {
+      final fs = fontSize ?? bodySize;
+      final c = color ?? _textPrimary;
       final rendered = urduImgs[imgKey];
       if (rendered != null) {
-        return pw.Image(rendered.img, height: rendered.h, width: rendered.w);
+        // Omit [width] so layout uses parent max width; fixed intrinsic width
+        // overflows flex slots and triggers pdf Flex assertions.
+        return pw.Image(
+          rendered.img,
+          height: rendered.h,
+          fit: pw.BoxFit.contain,
+          alignment: imageAlignment,
+        );
       }
+      final dir = textDirection ??
+          (_isUrdu(text) ? pw.TextDirection.rtl : pw.TextDirection.ltr);
       return pw.Text(
         text,
         textAlign: align,
-        textDirection: pw.TextDirection.ltr,
+        textDirection: dir,
         style: pw.TextStyle(
           font: bold ? latin.bold : latin.regular,
-          fontSize: fontSize,
-          color: color,
+          fontSize: fs,
+          color: c,
         ),
       );
     }
@@ -348,13 +378,213 @@ abstract final class PdfService {
     for (final p in pageIndices) {
       final slice = fullPages[p];
       final isLast = p == fullPages.length - 1;
+      final includeSummary = onlyPageIndex != null || isLast;
       final pageIndex = p + 1;
       final pageHeaderCenter = _pdfSheetHeaderTitle(slice);
+      var pageSumP = 0.0;
+      var pageSumV1 = 0.0;
+      var pageSumV2 = 0.0;
+      var pageSumV3 = 0.0;
+      for (final e in slice) {
+        pageSumP += e.pendingPayment;
+        pageSumV1 += e.value1;
+        pageSumV2 += e.value2;
+        pageSumV3 += e.value3;
+      }
+      final summaryP = onlyPageIndex != null ? pageSumP : sumP;
+      final summaryV1 = onlyPageIndex != null ? pageSumV1 : sumV1;
+      final summaryV2 = onlyPageIndex != null ? pageSumV2 : sumV2;
+      final summaryV3 = onlyPageIndex != null ? pageSumV3 : sumV3;
 
       doc.addPage(
         pw.Page(
           pageFormat: format,
           build: (ctx) {
+            final (pdfLeft, pdfRight) = LedgerLayout.splitSheetColumns(slice);
+            final pdfBandRows = math.max(pdfLeft.length, pdfRight.length);
+            const colGutterPt = 6.0;
+            final pdfLedgerColWidths = <int, pw.TableColumnWidth>{
+              0: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
+              1: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
+              2: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
+              3: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
+              4: pw.FlexColumnWidth(LedgerLayout.colPartyFlex.toDouble()),
+              5: pw.FlexColumnWidth(LedgerLayout.colSerialFlex.toDouble()),
+            };
+            final pdfLedgerInnerBorder = pw.TableBorder(
+              top: pw.BorderSide(color: _gridLine, width: 0.5),
+              horizontalInside: pw.BorderSide(color: _gridLine, width: 0.5),
+            );
+
+            pw.TableRow pdfHeaderRow() {
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: _headerBand),
+                children: [
+                  _td(
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: textOrImage(
+                        pendingLabel,
+                        'pendingLabel',
+                        fontSize: pendingHeaderSize,
+                        align: pw.TextAlign.right,
+                        bold: true,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    height: tableHeaderPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _th(
+                    value1Label,
+                    latin.bold,
+                    headerSize,
+                    height: tableHeaderPt,
+                    align: pw.TextAlign.right,
+                  ),
+                  _th(
+                    value2Label,
+                    latin.bold,
+                    headerSize,
+                    height: tableHeaderPt,
+                    align: pw.TextAlign.right,
+                  ),
+                  _th(
+                    value3Label,
+                    latin.bold,
+                    headerSize,
+                    height: tableHeaderPt,
+                    align: pw.TextAlign.right,
+                  ),
+                  _td(
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: textOrImage(
+                        partyLabel,
+                        'partyLabel',
+                        fontSize: partyHeaderSize,
+                        align: pw.TextAlign.right,
+                        imageAlignment: pw.Alignment.centerRight,
+                        bold: true,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    height: tableHeaderPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _th(
+                    '#',
+                    latin.bold,
+                    headerSize,
+                    height: tableHeaderPt,
+                    align: pw.TextAlign.center,
+                  ),
+                ],
+              );
+            }
+
+            pw.TableRow pdfDataRow(LedgerEntry e) {
+              return pw.TableRow(
+                children: [
+                  _td(
+                    numText(formatDecimal(e.pendingPayment)),
+                    height: rowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    numText(formatDecimal(e.value1)),
+                    height: rowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    numText(formatDecimal(e.value2)),
+                    height: rowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    numText(formatDecimal(e.value3)),
+                    height: rowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: textOrImage(
+                        e.partyName,
+                        'p:${e.partyName}',
+                        fontSize: partyNameSize,
+                        align: pw.TextAlign.right,
+                        imageAlignment: pw.Alignment.centerRight,
+                      ),
+                    ),
+                    height: rowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    numText(
+                      '${e.serialNumber}',
+                      align: pw.TextAlign.center,
+                      maxLines: 1,
+                      softWrap: false,
+                    ),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                ],
+              );
+            }
+
+            pw.TableRow pdfBlankRow() {
+              return pw.TableRow(
+                children: [
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: rowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                ],
+              );
+            }
+
+            pw.Widget pdfHalfTable(List<LedgerEntry> col) {
+              return pw.Table(
+                border: pdfLedgerInnerBorder,
+                columnWidths: pdfLedgerColWidths,
+                children: [
+                  pdfHeaderRow(),
+                  ...List.generate(
+                    pdfBandRows,
+                    (i) => i < col.length ? pdfDataRow(col[i]) : pdfBlankRow(),
+                  ),
+                ],
+              );
+            }
+
             return pw.Padding(
               padding: const pw.EdgeInsets.all(frameInsetPt),
               child: pw.Container(
@@ -376,288 +606,204 @@ abstract final class PdfService {
                     // ── Page header: page# left | page category center | date right ──
                     pw.SizedBox(
                       height: pageHeaderPt,
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                        children: [
-                          pw.Row(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      child: pw.LayoutBuilder(
+                        builder: (context, constraints) {
+                          final w = constraints?.maxWidth ?? 0;
+                          final centerW = w * 0.34;
+                          final leftW = (w - centerW) / 2;
+                          final rightW = leftW;
+                          return pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                             children: [
-                              pw.Expanded(
-                                child: pw.Text(
-                                  'Page $pageIndex of $totalPages',
-                                  style: pw.TextStyle(
-                                    font: latin.regular,
-                                    fontSize: 9,
-                                    color: _textSecondary,
+                              pw.Row(
+                                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                children: [
+                                  pw.SizedBox(
+                                    width: leftW,
+                                    child: pw.Align(
+                                      alignment: pw.Alignment.centerLeft,
+                                      child: pw.Text(
+                                        'Page $pageIndex of $totalPages',
+                                        style: pw.TextStyle(
+                                          font: latin.regular,
+                                          fontSize: 9,
+                                          color: _textSecondary,
+                                        ),
+                                        textDirection: pw.TextDirection.ltr,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: pw.TextOverflow.clip,
+                                      ),
+                                    ),
                                   ),
-                                  textDirection: pw.TextDirection.ltr,
-                                ),
-                              ),
-                              pw.Expanded(
-                                flex: 2,
-                                child: pw.Center(
-                                  child: textOrImage(
-                                    pageHeaderCenter,
-                                    _hdrImgKey(pageHeaderCenter),
-                                    fontSize: companySize,
-                                    align: pw.TextAlign.center,
-                                    bold: true,
+                                  pw.SizedBox(
+                                    width: centerW,
+                                    child: pw.Center(
+                                      child: textOrImage(
+                                        pageHeaderCenter,
+                                        _hdrImgKey(pageHeaderCenter),
+                                        fontSize: companySize,
+                                        align: pw.TextAlign.center,
+                                        bold: true,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              pw.Expanded(
-                                child: pw.Text(
-                                  _dateFmt.format(generatedAt),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.regular,
-                                    fontSize: 11,
-                                    color: _textPrimary,
+                                  pw.SizedBox(
+                                    width: rightW,
+                                    child: pw.Align(
+                                      alignment: pw.Alignment.centerRight,
+                                      child: pw.Text(
+                                        _dateFmt.format(generatedAt),
+                                        textAlign: pw.TextAlign.right,
+                                        textDirection: pw.TextDirection.ltr,
+                                        style: pw.TextStyle(
+                                          font: latin.regular,
+                                          fontSize: 11,
+                                          color: _textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: pw.TextOverflow.clip,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
+                              pw.SizedBox(height: 8 * _ptPerPx),
+                              pw.Divider(thickness: 0.5, color: _gridLine),
+                              pw.SizedBox(height: 6 * _ptPerPx),
                             ],
-                          ),
-                          pw.SizedBox(height: 8 * _ptPerPx),
-                          pw.Divider(thickness: 0.5, color: _gridLine),
-                          pw.SizedBox(height: 6 * _ptPerPx),
-                        ],
+                          );
+                        },
                       ),
                     ),
 
-                    // ── Table ──
-                    pw.Table(
-                      border: pw.TableBorder(
-                        top: pw.BorderSide(color: _gridLine, width: 0.5),
-                        horizontalInside: pw.BorderSide(
-                          color: _gridLine,
-                          width: 0.5,
-                        ),
-                      ),
-                      columnWidths: {
-                        0: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
-                        ),
-                        1: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
-                        ),
-                        2: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
-                        ),
-                        3: pw.FlexColumnWidth(
-                          LedgerLayout.colValueFlex.toDouble(),
-                        ),
-                        4: pw.FlexColumnWidth(
-                          LedgerLayout.colPartyFlex.toDouble(),
-                        ),
-                        5: pw.FixedColumnWidth(serialPt),
-                      },
+                    // ── Two-column table + full-width summary ──
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                       children: [
-                        // Header row
-                        pw.TableRow(
-                          decoration: pw.BoxDecoration(color: _headerBand),
-                          children: [
-                            // Pending label: image if Urdu, text if Latin
-                            _td(
-                              pw.Align(
-                                alignment: pw.Alignment.centerRight,
-                                child: textOrImage(
-                                  pendingLabel,
-                                  'pendingLabel',
-                                  fontSize: pendingHeaderSize,
-                                  align: pw.TextAlign.right,
-                                  bold: true,
-                                  color: _textPrimary,
+                        pw.LayoutBuilder(
+                          builder: (context, constraints) {
+                            final totalW = constraints?.maxWidth ?? 0;
+                            final halfW = (totalW - colGutterPt) / 2;
+                            return pw.Row(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.SizedBox(
+                                  width: halfW,
+                                  child: pdfHalfTable(pdfRight),
                                 ),
-                              ),
-                              height: tableHeaderPt,
-                            ),
-                            _th(
-                              value1Label,
-                              latin.bold,
-                              headerSize,
-                              height: tableHeaderPt,
-                            ),
-                            _th(
-                              value2Label,
-                              latin.bold,
-                              headerSize,
-                              height: tableHeaderPt,
-                            ),
-                            _th(
-                              value3Label,
-                              latin.bold,
-                              headerSize,
-                              height: tableHeaderPt,
-                            ),
-                            // Party label: image if Urdu, text if Latin
-                            _td(
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.only(
-                                  right: pendingHeaderRightInsetPt,
+                                pw.SizedBox(width: colGutterPt),
+                                pw.SizedBox(
+                                  width: halfW,
+                                  child: pdfHalfTable(pdfLeft),
                                 ),
-                                child: pw.Align(
-                                  alignment: pw.Alignment.centerRight,
-                                  child: textOrImage(
-                                    partyLabel,
-                                    'partyLabel',
-                                    fontSize: partyHeaderSize,
-                                    align: pw.TextAlign.right,
-                                    bold: true,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                              ),
-                              height: tableHeaderPt,
-                            ),
-                            _th(
-                              '#',
-                              latin.bold,
-                              headerSize,
-                              height: tableHeaderPt,
-                              align: pw.TextAlign.center,
-                            ),
-                          ],
+                              ],
+                            );
+                          },
                         ),
-                        // Data rows
-                        ...slice.map(
-                          (e) => pw.TableRow(
+                        if (includeSummary)
+                          pw.Table(
+                            border: pw.TableBorder(
+                              top: pw.BorderSide(color: _gridLine, width: 0.5),
+                              horizontalInside: pw.BorderSide(
+                                color: _gridLine,
+                                width: 0.5,
+                              ),
+                            ),
+                            columnWidths: pdfLedgerColWidths,
                             children: [
-                              _td(
-                                numText(formatDecimal(e.pendingPayment)),
-                                height: rowPt,
-                              ),
-                              _td(
-                                numText(formatDecimal(e.value1)),
-                                height: rowPt,
-                              ),
-                              _td(
-                                numText(formatDecimal(e.value2)),
-                                height: rowPt,
-                              ),
-                              _td(
-                                numText(formatDecimal(e.value3)),
-                                height: rowPt,
-                              ),
-                              // Party name: image if Urdu, text if Latin
-                              // Same right inset as party header so title and values align.
-                              _td(
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.only(
-                                    right: pendingHeaderRightInsetPt,
-                                  ),
-                                  child: pw.Align(
-                                    alignment:
-                                        _directionForMixedText(e.partyName) ==
-                                            pw.TextDirection.rtl
-                                        ? pw.Alignment.centerRight
-                                        : pw.Alignment.centerLeft,
-                                    child: textOrImage(
-                                      e.partyName,
-                                      'p:${e.partyName}',
-                                      fontSize: partyNameSize,
+                              pw.TableRow(
+                                decoration: pw.BoxDecoration(
+                                  color: _headerBand,
+                                  border: pw.Border(
+                                    top: pw.BorderSide(
+                                      color: _gridLine,
+                                      width: 0.5,
                                     ),
                                   ),
                                 ),
-                                height: rowPt,
-                              ),
-                              _td(
-                                numText(
-                                  '${e.serialNumber}',
-                                  align: pw.TextAlign.center,
-                                ),
-                                height: rowPt,
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Summary footer on last page
-                        if (isLast)
-                          pw.TableRow(
-                            decoration: pw.BoxDecoration(
-                              color: _headerBand,
-                              border: pw.Border(
-                                top: pw.BorderSide(
-                                  color: _gridLine,
-                                  width: 0.5,
-                                ),
-                              ),
-                            ),
-                            children: [
-                              _td(
-                                pw.Text(
-                                  formatDecimal(sumP),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.bold,
-                                    fontSize: summarySize,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                                height: summaryFooterPt,
-                              ),
-                              _td(
-                                pw.Text(
-                                  formatDecimal(sumV1),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.bold,
-                                    fontSize: summarySize,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                                height: summaryFooterPt,
-                              ),
-                              _td(
-                                pw.Text(
-                                  formatDecimal(sumV2),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.bold,
-                                    fontSize: summarySize,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                                height: summaryFooterPt,
-                              ),
-                              _td(
-                                pw.Text(
-                                  formatDecimal(sumV3),
-                                  textAlign: pw.TextAlign.right,
-                                  textDirection: pw.TextDirection.ltr,
-                                  style: pw.TextStyle(
-                                    font: latin.bold,
-                                    fontSize: summarySize,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                                height: summaryFooterPt,
-                              ),
-                              _td(
-                                pw.Align(
-                                  alignment: pw.Alignment.centerRight,
-                                  child: pw.Padding(
-                                    padding: const pw.EdgeInsets.only(
-                                      right: pendingHeaderRightInsetPt,
-                                    ),
-                                    child: pw.Text(
-                                      'TOTAL',
+                                children: [
+                                  _td(
+                                    pw.Text(
+                                      formatDecimal(summaryP),
+                                      textAlign: pw.TextAlign.right,
                                       textDirection: pw.TextDirection.ltr,
                                       style: pw.TextStyle(
                                         font: latin.bold,
                                         fontSize: summarySize,
-                                        color: _borderStrong,
+                                        color: _textPrimary,
                                       ),
                                     ),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.centerRight,
                                   ),
-                                ),
-                                height: summaryFooterPt,
+                                  _td(
+                                    pw.Text(
+                                      formatDecimal(summaryV1),
+                                      textAlign: pw.TextAlign.right,
+                                      textDirection: pw.TextDirection.ltr,
+                                      style: pw.TextStyle(
+                                        font: latin.bold,
+                                        fontSize: summarySize,
+                                        color: _textPrimary,
+                                      ),
+                                    ),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.centerRight,
+                                  ),
+                                  _td(
+                                    pw.Text(
+                                      formatDecimal(summaryV2),
+                                      textAlign: pw.TextAlign.right,
+                                      textDirection: pw.TextDirection.ltr,
+                                      style: pw.TextStyle(
+                                        font: latin.bold,
+                                        fontSize: summarySize,
+                                        color: _textPrimary,
+                                      ),
+                                    ),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.centerRight,
+                                  ),
+                                  _td(
+                                    pw.Text(
+                                      formatDecimal(summaryV3),
+                                      textAlign: pw.TextAlign.right,
+                                      textDirection: pw.TextDirection.ltr,
+                                      style: pw.TextStyle(
+                                        font: latin.bold,
+                                        fontSize: summarySize,
+                                        color: _textPrimary,
+                                      ),
+                                    ),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.centerRight,
+                                  ),
+                                  _td(
+                                    pw.Align(
+                                      alignment: pw.Alignment.centerRight,
+                                      child: pw.Text(
+                                        'TOTAL',
+                                        textAlign: pw.TextAlign.right,
+                                        textDirection: pw.TextDirection.ltr,
+                                        style: pw.TextStyle(
+                                          font: latin.bold,
+                                          fontSize: summarySize,
+                                          color: _borderStrong,
+                                        ),
+                                      ),
+                                    ),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.centerRight,
+                                  ),
+                                  _td(
+                                    pw.SizedBox(),
+                                    height: summaryFooterPt,
+                                    alignment: pw.Alignment.center,
+                                  ),
+                                ],
                               ),
-                              _td(pw.SizedBox(), height: summaryFooterPt),
                             ],
                           ),
                       ],
@@ -711,12 +857,16 @@ abstract final class PdfService {
     );
   }
 
-  static pw.Widget _td(pw.Widget child, {required double height}) {
+  static pw.Widget _td(
+    pw.Widget child, {
+    required double height,
+    required pw.Alignment alignment,
+  }) {
     return pw.SizedBox(
       height: height,
       child: pw.Padding(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4),
-        child: pw.Center(child: child),
+        child: pw.Align(alignment: alignment, child: child),
       ),
     );
   }
@@ -741,11 +891,6 @@ abstract final class PdfService {
       }
     }
     return false;
-  }
-
-  static pw.TextDirection _directionForMixedText(String text) {
-    if (text.isEmpty) return pw.TextDirection.ltr;
-    return _isUrdu(text) ? pw.TextDirection.rtl : pw.TextDirection.ltr;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

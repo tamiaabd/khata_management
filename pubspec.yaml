@@ -2,7 +2,7 @@ name: khata_management
 description: "this project is created for shuab bhai for his gass business"
 publish_to: 'none'
 
-version: 1.4.0+1
+version: 1.5.0+1
 
 environment:
   sdk: ^3.11.1
@@ -73,7 +73,7 @@ msix_config:
   # Must exactly match the Subject of the code-signing .pfx (GitHub WIN_CERT_PFX).
   publisher: CN=KhataManagement
   identity_name: com.saaritech.khata.management
-  msix_version: 1.4.0.1
+  msix_version: 1.5.0.1
   execution_alias: khata_management
   # Do not add runFullTrust here — msix already injects it for desktop; duplicating it breaks MakeAppx (0x80080204).
   capabilities: internetClient

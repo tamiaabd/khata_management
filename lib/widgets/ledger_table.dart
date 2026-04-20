@@ -13,7 +13,7 @@ import 'editable_cell.dart';
 
 const int _flexParty = LedgerLayout.colPartyFlex;
 const int _flexNum = LedgerLayout.colValueFlex;
-const double _wSerial = LedgerLayout.colSerialFixed;
+const int _flexSerial = LedgerLayout.colSerialFlex;
 const double _wAction = LedgerLayout.colActionFixed;
 
 class LedgerTableHeaderRow extends StatefulWidget {
@@ -116,10 +116,10 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
               ),
             ),
-            SizedBox(
-              width: _wSerial,
+            Expanded(
+              flex: _flexSerial.toInt(),
               child: Text(
-                '#',
+                '    #',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: LedgerLayout.tableHeaderFontSize,
@@ -226,6 +226,7 @@ class LedgerTable extends StatefulWidget {
     required this.entries,
     this.partyFocusEntryId,
     this.onAddRow,
+    this.focusAfterLastRowPending,
   });
 
   final AppDatabase db;
@@ -234,11 +235,15 @@ class LedgerTable extends StatefulWidget {
   final int? partyFocusEntryId;
   final VoidCallback? onAddRow;
 
+  /// When this table is the left column, focus moves here after pending on the
+  /// last row (cross-column keyboard flow).
+  final FocusNode? focusAfterLastRowPending;
+
   @override
-  State<LedgerTable> createState() => _LedgerTableState();
+  State<LedgerTable> createState() => LedgerTableState();
 }
 
-class _LedgerTableState extends State<LedgerTable> {
+class LedgerTableState extends State<LedgerTable> {
   final Map<int, FocusNode> _partyFocusByEntryId = {};
 
   @override
@@ -246,6 +251,8 @@ class _LedgerTableState extends State<LedgerTable> {
     super.initState();
     _syncPartyFocusNodes(widget.entries);
   }
+
+  FocusNode? partyFocusForEntryId(int entryId) => _partyFocusByEntryId[entryId];
 
   @override
   void didUpdateWidget(LedgerTable oldWidget) {
@@ -316,6 +323,9 @@ class _LedgerTableState extends State<LedgerTable> {
                 ? _partyFocusByEntryId[entries[i + 1].id]
                 : null,
             onAddRow: i == entries.length - 1 ? widget.onAddRow : null,
+            focusAfterLastRowPending: i == entries.length - 1
+                ? widget.focusAfterLastRowPending
+                : null,
           ),
         if (entries.isEmpty)
           Container(
@@ -323,7 +333,10 @@ class _LedgerTableState extends State<LedgerTable> {
             alignment: Alignment.center,
             child: Text(
               'No entries yet. Tap Add Row to start.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: LedgerLayout.tableBodyFontSize,
+              ),
             ),
           ),
       ],
@@ -341,6 +354,7 @@ class _LedgerRow extends StatefulWidget {
     required this.partyFocus,
     this.nextPartyFocus,
     this.onAddRow,
+    this.focusAfterLastRowPending,
   });
 
   final AppDatabase db;
@@ -350,6 +364,7 @@ class _LedgerRow extends StatefulWidget {
   final FocusNode partyFocus;
   final FocusNode? nextPartyFocus;
   final VoidCallback? onAddRow;
+  final FocusNode? focusAfterLastRowPending;
 
   @override
   State<_LedgerRow> createState() => _LedgerRowState();
@@ -512,11 +527,9 @@ class _LedgerRowState extends State<_LedgerRow> {
             splashColor: AppColors.primaryLight.withValues(alpha: 0.3),
             child: SizedBox(
               height: LedgerLayout.rowHeight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
                   Expanded(
                     flex: _flexNum,
                     child: NumericLedgerField(
@@ -524,13 +537,15 @@ class _LedgerRowState extends State<_LedgerRow> {
                       controller: _pending,
                       textInputAction:
                           (widget.nextPartyFocus != null ||
-                                  widget.onAddRow != null)
-                              ? TextInputAction.next
-                              : TextInputAction.done,
+                              widget.onAddRow != null)
+                          ? TextInputAction.next
+                          : TextInputAction.done,
                       onEditingComplete: () {
                         final next = widget.nextPartyFocus;
                         if (next != null) {
                           next.requestFocus();
+                        } else if (widget.focusAfterLastRowPending != null) {
+                          widget.focusAfterLastRowPending!.requestFocus();
                         } else if (widget.onAddRow != null) {
                           widget.onAddRow!();
                         } else {
@@ -578,6 +593,7 @@ class _LedgerRowState extends State<_LedgerRow> {
                           child: TextField(
                             controller: _party,
                             focusNode: widget.partyFocus,
+                            textAlign: TextAlign.right,
                             minLines: 1,
                             maxLines: 1,
                             textInputAction: TextInputAction.next,
@@ -604,8 +620,8 @@ class _LedgerRowState extends State<_LedgerRow> {
                       },
                     ),
                   ),
-                  SizedBox(
-                    width: _wSerial,
+                  Expanded(
+                    flex: _flexSerial,
                     child: Text(
                       '${widget.entry.serialNumber}',
                       textAlign: TextAlign.center,
@@ -636,7 +652,6 @@ class _LedgerRowState extends State<_LedgerRow> {
           ),
         ),
       ),
-    ),
     );
   }
 }

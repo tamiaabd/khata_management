@@ -5,7 +5,7 @@ import '../utils/formatters.dart';
 
 const int _flexParty = LedgerLayout.colPartyFlex;
 const int _flexNum = LedgerLayout.colValueFlex;
-const double _wSerial = LedgerLayout.colSerialFixed;
+const int _flexSerial = LedgerLayout.colSerialFlex;
 const double _wAction = LedgerLayout.colActionFixed;
 
 class LedgerTotals {
@@ -120,8 +120,11 @@ class SummaryFooter extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: _wSerial),
-              const SizedBox(width: _wAction),
+              Expanded(
+                flex: _flexSerial.toInt(),
+                child: const SizedBox.shrink(),
+              ),
+              SizedBox(width: _wAction),
             ],
           ),
         ),

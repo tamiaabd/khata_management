@@ -36,13 +36,13 @@ abstract final class AppUpdateConfig {
 
 abstract final class LedgerLayout {
   static const double headerFontSize = 20;
-  static const double tableHeaderFontSize = 13;
-  static const double tableBodyFontSize = 14;
-  static const double summaryFontSize = 15;
+  static const double tableHeaderFontSize = 10;
+  static const double tableBodyFontSize = 11;
+  static const double summaryFontSize = 14;
   // Single source of truth for Urdu sizing (UI + PDF sync).
-  static const double partyNameFontSize = 26;
-  static const double partyHeaderFontSize = 26;
-  static const double pendingHeaderFontSize = 26;
+  static const double partyNameFontSize = 18;
+  static const double partyHeaderFontSize = 22;
+  static const double pendingHeaderFontSize = 14;
   static const String partyHeaderText = 'دوکاندار';
   static const String pendingHeaderText = 'بقایا رقم';
 
@@ -60,20 +60,27 @@ abstract final class LedgerLayout {
 
   // Heights used for both UI preview and PDF pagination.
   static const double pageHeaderHeight = 36;
-  static const double tableHeaderHeight = 44;
-  static const double rowHeight = 52;
+  static const double tableHeaderHeight = 40;
+  static const double rowHeight = 48;
   static const double summaryFooterHeight = 60;
   static const double sheetPadding = 32; // top+bottom padding inside paper
 
-  // Column widths (shared between UI and PDF).
-  static const double colSerialFixed = 44;
-  static const double colActionFixed = 44;
-  static const int colPartyFlex = 3;
-  static const int colValueFlex = 2;
+  // Column flex (shared between UI and PDF). PDF [pw.FlexColumnWidth] uses the
+  // same ints as the Flutter [Expanded] row — tune ratios here for both.
+  static const double colActionFixed = 40;
+  static const int colPartyFlex = 12;
+  static const int colValueFlex = 6;
+  /// Wide enough for two-digit row numbers in PDF/UI without wrapping.
+  static const int colSerialFlex = 4;
+
+  /// Side-by-side ledger tables per sheet (UI + PDF). Each vertical band holds
+  /// one row per column, so entry capacity is this times [fullPageRows] slots.
+  static const int ledgerColumnsPerSheet = 2;
 
   /// UI logical pixels are 96-DPI; PDF points are 72-DPI.
   static const double ptPerPx = 72.0 / 96.0; // 0.75
 
+  /// Vertical row bands on one sheet (one column of the register).
   /// How many rows fit on a full page (no summary).
   static int fullPageRows() {
     final avail =
@@ -92,11 +99,26 @@ abstract final class LedgerLayout {
     return (avail / rowHeight).floor().clamp(1, 999);
   }
 
+  /// Entries that fit on one full sheet (all columns).
+  static int fullSheetEntryCapacity() => fullPageRows() * ledgerColumnsPerSheet;
+
+  /// Entries that fit on the last sheet (includes room for summary footer).
+  static int lastSheetEntryCapacity() => lastPageRows() * ledgerColumnsPerSheet;
+
+  /// Left column gets the first `ceil(n/2)` entries (serial order), then the right.
+  static (List<T> left, List<T> right) splitSheetColumns<T>(
+    List<T> pageEntries,
+  ) {
+    if (pageEntries.isEmpty) return (<T>[], <T>[]);
+    final mid = (pageEntries.length + 1) ~/ 2;
+    return (pageEntries.sublist(0, mid), pageEntries.sublist(mid));
+  }
+
   /// Paginate entries into full pages and one last page.
   static List<List<T>> paginate<T>(List<T> entries) {
     if (entries.isEmpty) return [[]];
-    final fullMax = fullPageRows();
-    final lastMax = lastPageRows();
+    final fullMax = fullSheetEntryCapacity();
+    final lastMax = lastSheetEntryCapacity();
     final pages = <List<T>>[];
     var i = 0;
     while (i < entries.length) {
@@ -140,8 +162,8 @@ abstract final class LedgerLayout {
 
   static List<List<T>> paginatePdf<T>(List<T> entries) {
     if (entries.isEmpty) return [[]];
-    final fullMax = pdfFullPageRows();
-    final lastMax = pdfLastPageRows();
+    final fullMax = pdfFullPageRows() * ledgerColumnsPerSheet;
+    final lastMax = pdfLastPageRows() * ledgerColumnsPerSheet;
     final pages = <List<T>>[];
     var i = 0;
     while (i < entries.length) {
