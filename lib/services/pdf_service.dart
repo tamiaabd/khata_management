@@ -378,7 +378,7 @@ abstract final class PdfService {
     for (final p in pageIndices) {
       final slice = fullPages[p];
       final isLast = p == fullPages.length - 1;
-      final includeSummary = onlyPageIndex != null || isLast;
+      final showGrandTotal = onlyPageIndex == null && isLast;
       final pageIndex = p + 1;
       final pageHeaderCenter = _pdfSheetHeaderTitle(slice);
       var pageSumP = 0.0;
@@ -391,10 +391,10 @@ abstract final class PdfService {
         pageSumV2 += e.value2;
         pageSumV3 += e.value3;
       }
-      final summaryP = onlyPageIndex != null ? pageSumP : sumP;
-      final summaryV1 = onlyPageIndex != null ? pageSumV1 : sumV1;
-      final summaryV2 = onlyPageIndex != null ? pageSumV2 : sumV2;
-      final summaryV3 = onlyPageIndex != null ? pageSumV3 : sumV3;
+      final summaryP = showGrandTotal ? sumP : pageSumP;
+      final summaryV1 = showGrandTotal ? sumV1 : pageSumV1;
+      final summaryV2 = showGrandTotal ? sumV2 : pageSumV2;
+      final summaryV3 = showGrandTotal ? sumV3 : pageSumV3;
 
       doc.addPage(
         pw.Page(
@@ -702,110 +702,109 @@ abstract final class PdfService {
                             );
                           },
                         ),
-                        if (includeSummary)
-                          pw.Table(
-                            border: pw.TableBorder(
-                              top: pw.BorderSide(color: _gridLine, width: 0.5),
-                              horizontalInside: pw.BorderSide(
-                                color: _gridLine,
-                                width: 0.5,
-                              ),
+                        pw.Table(
+                          border: pw.TableBorder(
+                            top: pw.BorderSide(color: _gridLine, width: 0.5),
+                            horizontalInside: pw.BorderSide(
+                              color: _gridLine,
+                              width: 0.5,
                             ),
-                            columnWidths: pdfLedgerColWidths,
-                            children: [
-                              pw.TableRow(
-                                decoration: pw.BoxDecoration(
-                                  color: _headerBand,
-                                  border: pw.Border(
-                                    top: pw.BorderSide(
-                                      color: _gridLine,
-                                      width: 0.5,
-                                    ),
+                          ),
+                          columnWidths: pdfLedgerColWidths,
+                          children: [
+                            pw.TableRow(
+                              decoration: pw.BoxDecoration(
+                                color: _headerBand,
+                                border: pw.Border(
+                                  top: pw.BorderSide(
+                                    color: _gridLine,
+                                    width: 0.5,
                                   ),
                                 ),
-                                children: [
-                                  _td(
-                                    pw.Text(
-                                      formatDecimal(summaryP),
-                                      textAlign: pw.TextAlign.right,
-                                      textDirection: pw.TextDirection.ltr,
-                                      style: pw.TextStyle(
-                                        font: latin.bold,
-                                        fontSize: summarySize,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.centerRight,
-                                  ),
-                                  _td(
-                                    pw.Text(
-                                      formatDecimal(summaryV1),
-                                      textAlign: pw.TextAlign.right,
-                                      textDirection: pw.TextDirection.ltr,
-                                      style: pw.TextStyle(
-                                        font: latin.bold,
-                                        fontSize: summarySize,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.centerRight,
-                                  ),
-                                  _td(
-                                    pw.Text(
-                                      formatDecimal(summaryV2),
-                                      textAlign: pw.TextAlign.right,
-                                      textDirection: pw.TextDirection.ltr,
-                                      style: pw.TextStyle(
-                                        font: latin.bold,
-                                        fontSize: summarySize,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.centerRight,
-                                  ),
-                                  _td(
-                                    pw.Text(
-                                      formatDecimal(summaryV3),
-                                      textAlign: pw.TextAlign.right,
-                                      textDirection: pw.TextDirection.ltr,
-                                      style: pw.TextStyle(
-                                        font: latin.bold,
-                                        fontSize: summarySize,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.centerRight,
-                                  ),
-                                  _td(
-                                    pw.Align(
-                                      alignment: pw.Alignment.centerRight,
-                                      child: pw.Text(
-                                        'TOTAL',
-                                        textAlign: pw.TextAlign.right,
-                                        textDirection: pw.TextDirection.ltr,
-                                        style: pw.TextStyle(
-                                          font: latin.bold,
-                                          fontSize: summarySize,
-                                          color: _borderStrong,
-                                        ),
-                                      ),
-                                    ),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.centerRight,
-                                  ),
-                                  _td(
-                                    pw.SizedBox(),
-                                    height: summaryFooterPt,
-                                    alignment: pw.Alignment.center,
-                                  ),
-                                ],
                               ),
-                            ],
-                          ),
+                              children: [
+                                _td(
+                                  pw.Text(
+                                    formatDecimal(summaryP),
+                                    textAlign: pw.TextAlign.right,
+                                    textDirection: pw.TextDirection.ltr,
+                                    style: pw.TextStyle(
+                                      font: latin.bold,
+                                      fontSize: summarySize,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.centerRight,
+                                ),
+                                _td(
+                                  pw.Text(
+                                    formatDecimal(summaryV1),
+                                    textAlign: pw.TextAlign.right,
+                                    textDirection: pw.TextDirection.ltr,
+                                    style: pw.TextStyle(
+                                      font: latin.bold,
+                                      fontSize: summarySize,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.centerRight,
+                                ),
+                                _td(
+                                  pw.Text(
+                                    formatDecimal(summaryV2),
+                                    textAlign: pw.TextAlign.right,
+                                    textDirection: pw.TextDirection.ltr,
+                                    style: pw.TextStyle(
+                                      font: latin.bold,
+                                      fontSize: summarySize,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.centerRight,
+                                ),
+                                _td(
+                                  pw.Text(
+                                    formatDecimal(summaryV3),
+                                    textAlign: pw.TextAlign.right,
+                                    textDirection: pw.TextDirection.ltr,
+                                    style: pw.TextStyle(
+                                      font: latin.bold,
+                                      fontSize: summarySize,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.centerRight,
+                                ),
+                                _td(
+                                  pw.Align(
+                                    alignment: pw.Alignment.centerRight,
+                                    child: pw.Text(
+                                      'TOTAL',
+                                      textAlign: pw.TextAlign.right,
+                                      textDirection: pw.TextDirection.ltr,
+                                      style: pw.TextStyle(
+                                        font: latin.bold,
+                                        fontSize: summarySize,
+                                        color: _borderStrong,
+                                      ),
+                                    ),
+                                  ),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.centerRight,
+                                ),
+                                _td(
+                                  pw.SizedBox(),
+                                  height: summaryFooterPt,
+                                  alignment: pw.Alignment.center,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ],

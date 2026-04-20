@@ -544,11 +544,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                       );
                                     },
                                   ),
-                                  if (p != pages.length - 1)
-                                    const SizedBox(
-                                      height:
-                                          LedgerLayout.summaryFooterHeight,
-                                    ),
+                                  SummaryFooter(
+                                    totals: p == pages.length - 1
+                                        ? totals
+                                        : _totals(pages[p]),
+                                  ),
                                 ],
                               ),
                             ),
@@ -557,30 +557,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                  ),
-                  LayoutBuilder(
-                    builder: (context, c) {
-                      final hPad = LedgerLayout.viewportHorizontalPadding(
-                        c.maxWidth,
-                      );
-                      final scale = responsiveA4LedgerScale(c.maxWidth);
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 0),
-                        child: ClipRect(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: Transform.scale(
-                              scale: scale,
-                              alignment: Alignment.topCenter,
-                              child: SizedBox(
-                                width: LedgerLayout.a4Width,
-                                child: SummaryFooter(totals: totals),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
                   ),
                   SafeArea(
                     top: false,

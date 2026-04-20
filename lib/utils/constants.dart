@@ -114,27 +114,16 @@ abstract final class LedgerLayout {
     return (pageEntries.sublist(0, mid), pageEntries.sublist(mid));
   }
 
-  /// Paginate entries into full pages and one last page.
+  /// Paginate entries when every page includes a summary footer.
   static List<List<T>> paginate<T>(List<T> entries) {
     if (entries.isEmpty) return [[]];
-    final fullMax = fullSheetEntryCapacity();
-    final lastMax = lastSheetEntryCapacity();
+    final pageMax = lastSheetEntryCapacity();
     final pages = <List<T>>[];
     var i = 0;
     while (i < entries.length) {
-      final remaining = entries.length - i;
-      if (remaining <= lastMax) {
-        pages.add(entries.sublist(i));
-        break;
-      }
-      if (remaining > fullMax) {
-        pages.add(entries.sublist(i, i + fullMax));
-        i += fullMax;
-        continue;
-      }
-      final take = remaining - lastMax;
-      pages.add(entries.sublist(i, i + take));
-      i += take;
+      final end = (i + pageMax).clamp(0, entries.length);
+      pages.add(entries.sublist(i, end));
+      i = end;
     }
     return pages;
   }
@@ -162,24 +151,13 @@ abstract final class LedgerLayout {
 
   static List<List<T>> paginatePdf<T>(List<T> entries) {
     if (entries.isEmpty) return [[]];
-    final fullMax = pdfFullPageRows() * ledgerColumnsPerSheet;
-    final lastMax = pdfLastPageRows() * ledgerColumnsPerSheet;
+    final pageMax = pdfLastPageRows() * ledgerColumnsPerSheet;
     final pages = <List<T>>[];
     var i = 0;
     while (i < entries.length) {
-      final remaining = entries.length - i;
-      if (remaining <= lastMax) {
-        pages.add(entries.sublist(i));
-        break;
-      }
-      if (remaining > fullMax) {
-        pages.add(entries.sublist(i, i + fullMax));
-        i += fullMax;
-        continue;
-      }
-      final take = remaining - lastMax;
-      pages.add(entries.sublist(i, i + take));
-      i += take;
+      final end = (i + pageMax).clamp(0, entries.length);
+      pages.add(entries.sublist(i, end));
+      i = end;
     }
     return pages;
   }
