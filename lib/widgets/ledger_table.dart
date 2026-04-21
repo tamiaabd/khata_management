@@ -226,6 +226,7 @@ class LedgerTable extends StatefulWidget {
     required this.entries,
     this.partyFocusEntryId,
     this.onAddRow,
+    this.onRowActivated,
     this.focusAfterLastRowPending,
   });
 
@@ -233,7 +234,8 @@ class LedgerTable extends StatefulWidget {
   final int companyId;
   final List<LedgerEntry> entries;
   final int? partyFocusEntryId;
-  final VoidCallback? onAddRow;
+  final ValueChanged<LedgerEntry>? onAddRow;
+  final ValueChanged<LedgerEntry>? onRowActivated;
 
   /// When this table is the left column, focus moves here after pending on the
   /// last row (cross-column keyboard flow).
@@ -322,7 +324,12 @@ class LedgerTableState extends State<LedgerTable> {
             nextPartyFocus: i + 1 < entries.length
                 ? _partyFocusByEntryId[entries[i + 1].id]
                 : null,
-            onAddRow: i == entries.length - 1 ? widget.onAddRow : null,
+            onAddRow: widget.onAddRow == null
+                ? null
+                : () => widget.onAddRow!(entries[i]),
+            onActivate: widget.onRowActivated == null
+                ? null
+                : () => widget.onRowActivated!(entries[i]),
             focusAfterLastRowPending: i == entries.length - 1
                 ? widget.focusAfterLastRowPending
                 : null,
@@ -354,6 +361,7 @@ class _LedgerRow extends StatefulWidget {
     required this.partyFocus,
     this.nextPartyFocus,
     this.onAddRow,
+    this.onActivate,
     this.focusAfterLastRowPending,
   });
 
@@ -364,6 +372,7 @@ class _LedgerRow extends StatefulWidget {
   final FocusNode partyFocus;
   final FocusNode? nextPartyFocus;
   final VoidCallback? onAddRow;
+  final VoidCallback? onActivate;
   final FocusNode? focusAfterLastRowPending;
 
   @override
@@ -382,6 +391,7 @@ class _LedgerRowState extends State<_LedgerRow> {
   final _v3Focus = FocusNode();
   final _pendingFocus = FocusNode();
   late final FocusNode _deleteFocus;
+  late List<FocusNode> _activationFocusNodes;
 
   /// Coalesces DB writes; avoids overlapping [replace] calls with stale [widget.entry] snapshots.
   final _persistDebouncer = Debouncer(
@@ -395,6 +405,16 @@ class _LedgerRowState extends State<_LedgerRow> {
       debugLabel: 'delete ${widget.entry.id}',
       skipTraversal: true,
     );
+    _activationFocusNodes = [
+      widget.partyFocus,
+      _v3Focus,
+      _v2Focus,
+      _v1Focus,
+      _pendingFocus,
+    ];
+    for (final node in _activationFocusNodes) {
+      node.addListener(_onFocusChange);
+    }
     final e = widget.entry;
     _party = TextEditingController(text: e.partyName);
     _v1 = TextEditingController(text: formatDecimal(e.value1));
@@ -411,6 +431,17 @@ class _LedgerRowState extends State<_LedgerRow> {
   @override
   void didUpdateWidget(covariant _LedgerRow oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.partyFocus != widget.partyFocus) {
+      oldWidget.partyFocus.removeListener(_onFocusChange);
+      widget.partyFocus.addListener(_onFocusChange);
+      _activationFocusNodes = [
+        widget.partyFocus,
+        _v3Focus,
+        _v2Focus,
+        _v1Focus,
+        _pendingFocus,
+      ];
+    }
     final e = widget.entry;
     if (oldWidget.entry.id != e.id) return;
     if (widget.requestPartyFocus && !oldWidget.requestPartyFocus) {
@@ -441,6 +472,9 @@ class _LedgerRowState extends State<_LedgerRow> {
     _v2.dispose();
     _v3.dispose();
     _pending.dispose();
+    for (final node in _activationFocusNodes) {
+      node.removeListener(_onFocusChange);
+    }
     _deleteFocus.dispose();
     _v1Focus.dispose();
     _v2Focus.dispose();
@@ -451,6 +485,12 @@ class _LedgerRowState extends State<_LedgerRow> {
 
   Future<void> _persist(LedgerEntry next) async {
     await widget.db.ledgerDao.updateEntry(next);
+  }
+
+  void _onFocusChange() {
+    if (_activationFocusNodes.any((node) => node.hasFocus)) {
+      widget.onActivate?.call();
+    }
   }
 
   /// Single source of truth for persistence — prevents out-of-order async replaces
@@ -522,6 +562,7 @@ class _LedgerRowState extends State<_LedgerRow> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
+            onTap: widget.onActivate,
             onLongPress: _confirmDelete,
             hoverColor: AppColors.gridLineLight.withValues(alpha: 0.5),
             splashColor: AppColors.primaryLight.withValues(alpha: 0.3),

@@ -24,6 +24,31 @@ class LedgerDao extends DatabaseAccessor<AppDatabase> with _$LedgerDaoMixin {
     return into(ledgerEntries).insert(companion);
   }
 
+  Future<int> insertEntryAfterSerial({
+    required int companyId,
+    required int afterSerial,
+  }) {
+    return transaction(() async {
+      final insertSerial = afterSerial + 1;
+      await (update(ledgerEntries)
+            ..where(
+              (t) => t.companyId.equals(companyId) &
+                  t.serialNumber.isBiggerOrEqualValue(insertSerial),
+            ))
+          .write(
+            LedgerEntriesCompanion.custom(
+              serialNumber: ledgerEntries.serialNumber + const Constant(1),
+            ),
+          );
+      return into(ledgerEntries).insert(
+        LedgerEntriesCompanion.insert(
+          companyId: companyId,
+          serialNumber: insertSerial,
+        ),
+      );
+    });
+  }
+
   Future<void> updateEntry(LedgerEntry entry) {
     return update(ledgerEntries).replace(entry);
   }
@@ -40,6 +65,8 @@ class LedgerDao extends DatabaseAccessor<AppDatabase> with _$LedgerDaoMixin {
   }
 
   Future<int> deleteAllEntriesForCompany(int companyId) {
-    return (delete(ledgerEntries)..where((t) => t.companyId.equals(companyId))).go();
+    return (delete(
+      ledgerEntries,
+    )..where((t) => t.companyId.equals(companyId))).go();
   }
 }

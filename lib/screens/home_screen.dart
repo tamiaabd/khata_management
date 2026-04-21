@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _rightLedgerKeys = <int, GlobalKey<LedgerTableState>>{};
   String _appVersion = '';
   int? _partyFocusEntryId;
+  int? _insertAfterEntryId;
   Company? _company;
 
   GlobalKey<LedgerTableState> _rightLedgerKeyForPage(int pageIndex) =>
@@ -184,19 +185,29 @@ class _HomeScreenState extends State<HomeScreen> {
     return LedgerTotals(pending: p, value1: v1, value2: v2, value3: v3);
   }
 
-  Future<void> _addRow(AppDatabase db) async {
-    final serial = await db.ledgerDao.nextSerialNumber(_companyId);
-    final id = await db.ledgerDao.insertEntry(
-      LedgerEntriesCompanion.insert(
-        companyId: _companyId,
-        serialNumber: serial,
-      ),
-    );
+  Future<void> _addRow(AppDatabase db, {LedgerEntry? afterEntry}) async {
+    final id = afterEntry == null
+        ? await () async {
+            final serial = await db.ledgerDao.nextSerialNumber(_companyId);
+            return db.ledgerDao.insertEntry(
+              LedgerEntriesCompanion.insert(
+                companyId: _companyId,
+                serialNumber: serial,
+              ),
+            );
+          }()
+        : await db.ledgerDao.insertEntryAfterSerial(
+            companyId: _companyId,
+            afterSerial: afterEntry.serialNumber,
+          );
     if (!mounted) return;
-    setState(() => _partyFocusEntryId = id);
+    setState(() {
+      _partyFocusEntryId = id;
+      _insertAfterEntryId = id;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_scroll.hasClients) {
+      if (afterEntry == null && _scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 280),
@@ -487,9 +498,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   right.first.id,
                                                 )
                                           : null;
-                                      final onAdd = isLastPage
-                                          ? () => _addRow(db)
-                                          : null;
+                                      Future<void> onAdd(LedgerEntry entry) {
+                                        return _addRow(db, afterEntry: entry);
+                                      }
                                       // RTL sheet: first serial block on the right,
                                       // second block on the left (Row is LTR).
                                       return Row(
@@ -510,9 +521,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   partyFocusEntryId: isLastPage
                                                       ? _partyFocusEntryId
                                                       : null,
-                                                  onAddRow: right.isNotEmpty
-                                                      ? onAdd
-                                                      : null,
+                                                  onAddRow: onAdd,
+                                                  onRowActivated: (entry) {
+                                                    if (_insertAfterEntryId ==
+                                                        entry.id) {
+                                                      return;
+                                                    }
+                                                    setState(() {
+                                                      _insertAfterEntryId =
+                                                          entry.id;
+                                                    });
+                                                  },
                                                 ),
                                               ],
                                             ),
@@ -533,9 +552,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                                       : null,
                                                   focusAfterLastRowPending:
                                                       bridgeToRightParty,
-                                                  onAddRow: right.isEmpty
-                                                      ? onAdd
-                                                      : null,
+                                                  onAddRow: onAdd,
+                                                  onRowActivated: (entry) {
+                                                    if (_insertAfterEntryId ==
+                                                        entry.id) {
+                                                      return;
+                                                    }
+                                                    setState(() {
+                                                      _insertAfterEntryId =
+                                                          entry.id;
+                                                    });
+                                                  },
                                                 ),
                                               ],
                                             ),
@@ -610,7 +637,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  onPressed: () => _addRow(db),
+                                  onPressed: () {
+                                    LedgerEntry? anchor;
+                                    final anchorId = _insertAfterEntryId;
+                                    if (anchorId != null) {
+                                      for (final entry in entries) {
+                                        if (entry.id == anchorId) {
+                                          anchor = entry;
+                                          break;
+                                        }
+                                      }
+                                    }
+                                    _addRow(db, afterEntry: anchor);
+                                  },
                                   icon: const Icon(Icons.add),
                                   label: const Text('Add Row'),
                                 ),
