@@ -16,6 +16,7 @@ import '../database/app_database.dart';
 import '../utils/formatters.dart';
 import '../utils/constants.dart';
 import '../utils/ledger_pagination.dart';
+import '../utils/ledger_totals.dart';
 
 /// A4 portrait, multi-page ledger with totals on the last page.
 /// Matches the on-screen home preview layout exactly.
@@ -149,8 +150,8 @@ abstract final class PdfService {
   // ─────────────────────────────────────────────────────────────────────────
 
   /// When [onlyPageIndex] is set (0-based), the PDF contains that single sheet
-  /// from the same pagination as the full ledger. In this mode, the footer
-  /// total row is always shown and sums only that selected sheet.
+  /// from the same pagination as the full ledger. The final summary footer is
+  /// only shown when that selected sheet is the ledger's last sheet.
   static Future<Uint8List> buildPdf({
     required PdfPageFormat format,
     required String companyName,
@@ -161,6 +162,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
     int? onlyPageIndex,
   }) async {
     if (onlyPageIndex != null) {
@@ -246,6 +248,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
       urduImgs: urduImgs,
       partyNameSize: partyNameSize,
       partyHeaderSize: partyHeaderSize,
@@ -268,6 +271,7 @@ abstract final class PdfService {
     required String value1Label,
     required String value2Label,
     required String value3Label,
+    required LedgerTotals godamTotals,
     required Map<String, ({pw.MemoryImage img, double w, double h})> urduImgs,
     required double partyNameSize,
     required double partyHeaderSize,
@@ -283,7 +287,10 @@ abstract final class PdfService {
     const double pageHeaderPt = LedgerLayout.pageHeaderHeight * _ptPerPx;
     const double tableHeaderPt = LedgerLayout.tableHeaderHeight * _ptPerPx;
     const double rowPt = LedgerLayout.rowHeight * _ptPerPx;
-    const double summaryFooterPt = LedgerLayout.summaryFooterHeight * _ptPerPx;
+    const double summaryRowPt = LedgerLayout.summaryRowHeight * _ptPerPx;
+    const double pageSummaryTopGapPt =
+        LedgerLayout.pageSummaryTopGap * _ptPerPx;
+    const double finalSummaryGapPt = LedgerLayout.finalSummaryGap * _ptPerPx;
     const double sheetVPaddingPt = (LedgerLayout.sheetPadding * _ptPerPx) / 2.0;
     const double frameInsetPt = 10;
     const double frameHPaddingPt = 12;
@@ -342,7 +349,8 @@ abstract final class PdfService {
           alignment: imageAlignment,
         );
       }
-      final dir = textDirection ??
+      final dir =
+          textDirection ??
           (_isUrdu(text) ? pw.TextDirection.rtl : pw.TextDirection.ltr);
       return pw.Text(
         text,
@@ -362,39 +370,18 @@ abstract final class PdfService {
         ? <int>[onlyPageIndex]
         : List<int>.generate(fullPages.length, (i) => i);
 
-    double sumP = 0;
-    double sumV1 = 0;
-    double sumV2 = 0;
-    double sumV3 = 0;
-    for (final e in entries) {
-      sumP += e.pendingPayment;
-      sumV1 += e.value1;
-      sumV2 += e.value2;
-      sumV3 += e.value3;
-    }
+    final totalTotals = LedgerTotals.fromEntries(entries);
 
     final doc = pw.Document();
 
     for (final p in pageIndices) {
       final slice = fullPages[p];
       final isLast = p == fullPages.length - 1;
-      final showGrandTotal = onlyPageIndex == null && isLast;
+      final showFinalSummary = isLast;
       final pageIndex = p + 1;
       final pageHeaderCenter = _pdfSheetHeaderTitle(slice);
-      var pageSumP = 0.0;
-      var pageSumV1 = 0.0;
-      var pageSumV2 = 0.0;
-      var pageSumV3 = 0.0;
-      for (final e in slice) {
-        pageSumP += e.pendingPayment;
-        pageSumV1 += e.value1;
-        pageSumV2 += e.value2;
-        pageSumV3 += e.value3;
-      }
-      final summaryP = showGrandTotal ? sumP : pageSumP;
-      final summaryV1 = showGrandTotal ? sumV1 : pageSumV1;
-      final summaryV2 = showGrandTotal ? sumV2 : pageSumV2;
-      final summaryV3 = showGrandTotal ? sumV3 : pageSumV3;
+      final pageTotals = LedgerTotals.fromEntries(slice);
+      final summaryTotals = totalTotals;
 
       doc.addPage(
         pw.Page(
@@ -404,16 +391,16 @@ abstract final class PdfService {
             final pdfBandRows = math.max(pdfLeft.length, pdfRight.length);
             const colGutterPt = 6.0;
             final pdfLedgerColWidths = <int, pw.TableColumnWidth>{
-              0: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
+              0: pw.FlexColumnWidth(LedgerLayout.colPendingFlex.toDouble()),
               1: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
               2: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
               3: pw.FlexColumnWidth(LedgerLayout.colValueFlex.toDouble()),
               4: pw.FlexColumnWidth(LedgerLayout.colPartyFlex.toDouble()),
               5: pw.FlexColumnWidth(LedgerLayout.colSerialFlex.toDouble()),
             };
-            final pdfLedgerInnerBorder = pw.TableBorder(
-              top: pw.BorderSide(color: _gridLine, width: 0.5),
-              horizontalInside: pw.BorderSide(color: _gridLine, width: 0.5),
+            final pdfLedgerInnerBorder = pw.TableBorder.all(
+              color: _gridLine,
+              width: 0.5,
             );
 
             pw.TableRow pdfHeaderRow() {
@@ -571,6 +558,73 @@ abstract final class PdfService {
               );
             }
 
+            pw.Widget summaryText(String text) {
+              return pw.Text(
+                text,
+                textAlign: pw.TextAlign.right,
+                textDirection: pw.TextDirection.ltr,
+                style: pw.TextStyle(
+                  font: latin.bold,
+                  fontSize: summarySize,
+                  color: _textPrimary,
+                ),
+              );
+            }
+
+            pw.TableRow pdfSummaryRow(
+              String label,
+              LedgerTotals totals,
+              PdfColor fillColor,
+            ) {
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: fillColor),
+                children: [
+                  _td(
+                    summaryText(formatDecimal(totals.pending)),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    summaryText(formatDecimal(totals.value1)),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    summaryText(formatDecimal(totals.value2)),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    summaryText(formatDecimal(totals.value3)),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: pw.Text(
+                        label,
+                        textAlign: pw.TextAlign.right,
+                        textDirection: pw.TextDirection.ltr,
+                        style: pw.TextStyle(
+                          font: latin.bold,
+                          fontSize: summarySize,
+                          color: _borderStrong,
+                        ),
+                      ),
+                    ),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.centerRight,
+                  ),
+                  _td(
+                    pw.SizedBox(),
+                    height: summaryRowPt,
+                    alignment: pw.Alignment.center,
+                  ),
+                ],
+              );
+            }
+
             pw.Widget pdfHalfTable(List<LedgerEntry> col) {
               return pw.Table(
                 border: pdfLedgerInnerBorder,
@@ -580,6 +634,11 @@ abstract final class PdfService {
                   ...List.generate(
                     pdfBandRows,
                     (i) => i < col.length ? pdfDataRow(col[i]) : pdfBlankRow(),
+                  ),
+                  pdfSummaryRow(
+                    'TOTAL',
+                    LedgerTotals.fromEntries(col),
+                    const PdfColor(0.95, 0.95, 0.95),
                   ),
                 ],
               );
@@ -616,7 +675,8 @@ abstract final class PdfService {
                             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                             children: [
                               pw.Row(
-                                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                crossAxisAlignment:
+                                    pw.CrossAxisAlignment.center,
                                 children: [
                                   pw.SizedBox(
                                     width: leftW,
@@ -702,109 +762,48 @@ abstract final class PdfService {
                             );
                           },
                         ),
+                        pw.SizedBox(height: pageSummaryTopGapPt),
                         pw.Table(
-                          border: pw.TableBorder(
-                            top: pw.BorderSide(color: _gridLine, width: 0.5),
-                            horizontalInside: pw.BorderSide(
-                              color: _gridLine,
-                              width: 0.5,
-                            ),
+                          border: pw.TableBorder.all(
+                            color: _gridLine,
+                            width: 0.5,
                           ),
                           columnWidths: pdfLedgerColWidths,
                           children: [
-                            pw.TableRow(
-                              decoration: pw.BoxDecoration(
-                                color: _headerBand,
-                                border: pw.Border(
-                                  top: pw.BorderSide(
-                                    color: _gridLine,
-                                    width: 0.5,
-                                  ),
-                                ),
-                              ),
-                              children: [
-                                _td(
-                                  pw.Text(
-                                    formatDecimal(summaryP),
-                                    textAlign: pw.TextAlign.right,
-                                    textDirection: pw.TextDirection.ltr,
-                                    style: pw.TextStyle(
-                                      font: latin.bold,
-                                      fontSize: summarySize,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.centerRight,
-                                ),
-                                _td(
-                                  pw.Text(
-                                    formatDecimal(summaryV1),
-                                    textAlign: pw.TextAlign.right,
-                                    textDirection: pw.TextDirection.ltr,
-                                    style: pw.TextStyle(
-                                      font: latin.bold,
-                                      fontSize: summarySize,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.centerRight,
-                                ),
-                                _td(
-                                  pw.Text(
-                                    formatDecimal(summaryV2),
-                                    textAlign: pw.TextAlign.right,
-                                    textDirection: pw.TextDirection.ltr,
-                                    style: pw.TextStyle(
-                                      font: latin.bold,
-                                      fontSize: summarySize,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.centerRight,
-                                ),
-                                _td(
-                                  pw.Text(
-                                    formatDecimal(summaryV3),
-                                    textAlign: pw.TextAlign.right,
-                                    textDirection: pw.TextDirection.ltr,
-                                    style: pw.TextStyle(
-                                      font: latin.bold,
-                                      fontSize: summarySize,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.centerRight,
-                                ),
-                                _td(
-                                  pw.Align(
-                                    alignment: pw.Alignment.centerRight,
-                                    child: pw.Text(
-                                      'TOTAL',
-                                      textAlign: pw.TextAlign.right,
-                                      textDirection: pw.TextDirection.ltr,
-                                      style: pw.TextStyle(
-                                        font: latin.bold,
-                                        fontSize: summarySize,
-                                        color: _borderStrong,
-                                      ),
-                                    ),
-                                  ),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.centerRight,
-                                ),
-                                _td(
-                                  pw.SizedBox(),
-                                  height: summaryFooterPt,
-                                  alignment: pw.Alignment.center,
-                                ),
-                              ],
+                            pdfSummaryRow(
+                              'PAGE TOTAL',
+                              pageTotals,
+                              _headerBand,
                             ),
                           ],
                         ),
+                        if (showFinalSummary) ...[
+                          pw.SizedBox(height: finalSummaryGapPt),
+                          pw.Table(
+                            border: pw.TableBorder.all(
+                              color: _gridLine,
+                              width: 0.5,
+                            ),
+                            columnWidths: pdfLedgerColWidths,
+                            children: [
+                              pdfSummaryRow(
+                                'TOTAL',
+                                summaryTotals,
+                                const PdfColor(0.95, 0.95, 0.95),
+                              ),
+                              pdfSummaryRow(
+                                'GODAM',
+                                godamTotals,
+                                const PdfColor(1, 1, 1),
+                              ),
+                              pdfSummaryRow(
+                                'GRAND TOTAL',
+                                summaryTotals + godamTotals,
+                                _headerBand,
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -906,6 +905,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
@@ -922,6 +922,7 @@ abstract final class PdfService {
         value1Label: value1Label,
         value2Label: value2Label,
         value3Label: value3Label,
+        godamTotals: godamTotals,
       ),
     );
   }
@@ -937,6 +938,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
     required int pageIndex,
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
@@ -954,6 +956,7 @@ abstract final class PdfService {
         value1Label: value1Label,
         value2Label: value2Label,
         value3Label: value3Label,
+        godamTotals: godamTotals,
         onlyPageIndex: pageIndex,
       ),
     );
@@ -969,6 +972,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
@@ -982,6 +986,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
     );
     await Printing.sharePdf(
       bytes: bytes,
@@ -1002,6 +1007,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
     final format = _a4Format();
@@ -1015,6 +1021,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
     );
 
     final stem = _ledgerPdfStem(companyName);
@@ -1037,6 +1044,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
     required int pageIndex,
   }) async {
     final entries = await database.ledgerDao.entriesForCompanyOnce(companyId);
@@ -1051,6 +1059,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
       onlyPageIndex: pageIndex,
     );
 
@@ -1073,6 +1082,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
   }) async {
     final file = await savePdf(
       context: context,
@@ -1084,6 +1094,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
     );
     await OpenFilex.open(file.path);
   }
@@ -1099,6 +1110,7 @@ abstract final class PdfService {
     String value1Label = 'Value 1',
     String value2Label = 'Value 2',
     String value3Label = 'Value 3',
+    LedgerTotals godamTotals = LedgerTotals.zero,
     required int pageIndex,
   }) async {
     final file = await saveLedgerPagePdf(
@@ -1111,6 +1123,7 @@ abstract final class PdfService {
       value1Label: value1Label,
       value2Label: value2Label,
       value3Label: value3Label,
+      godamTotals: godamTotals,
       pageIndex: pageIndex,
     );
     await OpenFilex.open(file.path);

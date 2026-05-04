@@ -35,14 +35,14 @@ abstract final class AppUpdateConfig {
 }
 
 abstract final class LedgerLayout {
-  static const double headerFontSize = 20;
-  static const double tableHeaderFontSize = 10;
-  static const double tableBodyFontSize = 11;
-  static const double summaryFontSize = 14;
+  static const double headerFontSize = 22;
+  static const double tableHeaderFontSize = 13;
+  static const double tableBodyFontSize = 14;
+  static const double summaryFontSize = 16;
   // Single source of truth for Urdu sizing (UI + PDF sync).
-  static const double partyNameFontSize = 18;
-  static const double partyHeaderFontSize = 22;
-  static const double pendingHeaderFontSize = 14;
+  static const double partyNameFontSize = 20;
+  static const double partyHeaderFontSize = 24;
+  static const double pendingHeaderFontSize = 16;
   static const String partyHeaderText = 'دوکاندار';
   static const String pendingHeaderText = 'بقایا رقم';
 
@@ -60,16 +60,25 @@ abstract final class LedgerLayout {
 
   // Heights used for both UI preview and PDF pagination.
   static const double pageHeaderHeight = 36;
-  static const double tableHeaderHeight = 40;
-  static const double rowHeight = 48;
-  static const double summaryFooterHeight = 60;
+  static const double tableHeaderHeight = 44;
+  static const double rowHeight = 50;
+  static const double summaryRowHeight = 48;
+  static const double columnTotalsRowHeight = summaryRowHeight;
+  static const double pageSummaryTopGap = 8;
+  static const double finalSummaryGap = 8;
+  static const double pageSummaryFooterHeight = summaryRowHeight;
+  static const double finalSummaryFooterHeight =
+      (summaryRowHeight * 4) + finalSummaryGap;
+  static const double summaryFooterHeight = finalSummaryFooterHeight;
   static const double sheetPadding = 32; // top+bottom padding inside paper
 
   // Column flex (shared between UI and PDF). PDF [pw.FlexColumnWidth] uses the
   // same ints as the Flutter [Expanded] row — tune ratios here for both.
   static const double colActionFixed = 40;
   static const int colPartyFlex = 12;
-  static const int colValueFlex = 6;
+  static const int colPendingFlex = 8;
+  static const int colValueFlex = 4;
+
   /// Wide enough for two-digit row numbers in PDF/UI without wrapping.
   static const int colSerialFlex = 4;
 
@@ -81,10 +90,16 @@ abstract final class LedgerLayout {
   static const double ptPerPx = 72.0 / 96.0; // 0.75
 
   /// Vertical row bands on one sheet (one column of the register).
-  /// How many rows fit on a full page (no summary).
+  /// How many rows fit on a normal page (page total only, no final summary).
   static int fullPageRows() {
     final avail =
-        a4Height - sheetPadding - pageHeaderHeight - tableHeaderHeight;
+        a4Height -
+        sheetPadding -
+        pageHeaderHeight -
+        tableHeaderHeight -
+        columnTotalsRowHeight -
+        pageSummaryTopGap -
+        pageSummaryFooterHeight;
     return (avail / rowHeight).floor().clamp(1, 999);
   }
 
@@ -95,6 +110,8 @@ abstract final class LedgerLayout {
         sheetPadding -
         pageHeaderHeight -
         tableHeaderHeight -
+        columnTotalsRowHeight -
+        pageSummaryTopGap -
         summaryFooterHeight;
     return (avail / rowHeight).floor().clamp(1, 999);
   }
@@ -105,6 +122,11 @@ abstract final class LedgerLayout {
   /// Entries that fit on the last sheet (includes room for summary footer).
   static int lastSheetEntryCapacity() => lastPageRows() * ledgerColumnsPerSheet;
 
+  /// Paginate pages that never show the final summary footer.
+  static List<List<T>> paginateNonFinal<T>(List<T> entries) {
+    return _paginateFixed(entries, fullSheetEntryCapacity());
+  }
+
   /// Left column gets the first `ceil(n/2)` entries (serial order), then the right.
   static (List<T> left, List<T> right) splitSheetColumns<T>(
     List<T> pageEntries,
@@ -114,18 +136,14 @@ abstract final class LedgerLayout {
     return (pageEntries.sublist(0, mid), pageEntries.sublist(mid));
   }
 
-  /// Paginate entries when every page includes a summary footer.
+  /// Paginate entries so normal pages use their full row capacity and only the
+  /// final page reserves room for TOTAL/GODAM/GRAND TOTAL.
   static List<List<T>> paginate<T>(List<T> entries) {
-    if (entries.isEmpty) return [[]];
-    final pageMax = lastSheetEntryCapacity();
-    final pages = <List<T>>[];
-    var i = 0;
-    while (i < entries.length) {
-      final end = (i + pageMax).clamp(0, entries.length);
-      pages.add(entries.sublist(i, end));
-      i = end;
-    }
-    return pages;
+    return _paginateWithFinalFooter(
+      entries,
+      fullSheetEntryCapacity(),
+      lastSheetEntryCapacity(),
+    );
   }
 
   // ── PDF pagination (same logic, but everything already in points) ──
@@ -135,7 +153,10 @@ abstract final class LedgerLayout {
         (a4Height * ptPerPx) -
         (sheetPadding * ptPerPx) -
         (pageHeaderHeight * ptPerPx) -
-        (tableHeaderHeight * ptPerPx);
+        (tableHeaderHeight * ptPerPx) -
+        (columnTotalsRowHeight * ptPerPx) -
+        (pageSummaryTopGap * ptPerPx) -
+        (pageSummaryFooterHeight * ptPerPx);
     return (avail / (rowHeight * ptPerPx)).floor().clamp(1, 999);
   }
 
@@ -145,20 +166,59 @@ abstract final class LedgerLayout {
         (sheetPadding * ptPerPx) -
         (pageHeaderHeight * ptPerPx) -
         (tableHeaderHeight * ptPerPx) -
+        (columnTotalsRowHeight * ptPerPx) -
+        (pageSummaryTopGap * ptPerPx) -
         (summaryFooterHeight * ptPerPx);
     return (avail / (rowHeight * ptPerPx)).floor().clamp(1, 999);
   }
 
+  static List<List<T>> paginatePdfNonFinal<T>(List<T> entries) {
+    return _paginateFixed(entries, pdfFullPageRows() * ledgerColumnsPerSheet);
+  }
+
   static List<List<T>> paginatePdf<T>(List<T> entries) {
+    return _paginateWithFinalFooter(
+      entries,
+      pdfFullPageRows() * ledgerColumnsPerSheet,
+      pdfLastPageRows() * ledgerColumnsPerSheet,
+    );
+  }
+
+  static List<List<T>> _paginateFixed<T>(List<T> entries, int pageMax) {
     if (entries.isEmpty) return [[]];
-    final pageMax = pdfLastPageRows() * ledgerColumnsPerSheet;
+    final safePageMax = pageMax < 1 ? 1 : pageMax;
     final pages = <List<T>>[];
     var i = 0;
     while (i < entries.length) {
-      final end = (i + pageMax).clamp(0, entries.length);
+      final end = (i + safePageMax).clamp(0, entries.length);
       pages.add(entries.sublist(i, end));
       i = end;
     }
+    return pages;
+  }
+
+  static List<List<T>> _paginateWithFinalFooter<T>(
+    List<T> entries,
+    int normalPageMax,
+    int finalPageMax,
+  ) {
+    if (entries.isEmpty) return [[]];
+    final safeNormalMax = normalPageMax < 1 ? 1 : normalPageMax;
+    final safeFinalMax = finalPageMax < 1 ? 1 : finalPageMax;
+    if (safeNormalMax <= safeFinalMax) {
+      return _paginateFixed(entries, safeNormalMax);
+    }
+
+    final pages = <List<T>>[];
+    var start = 0;
+    while (entries.length - start > safeFinalMax) {
+      final remaining = entries.length - start;
+      final take = remaining <= safeNormalMax ? safeFinalMax : safeNormalMax;
+      final end = start + take;
+      pages.add(entries.sublist(start, end));
+      start = end;
+    }
+    pages.add(entries.sublist(start));
     return pages;
   }
 }

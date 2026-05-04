@@ -30,11 +30,11 @@ class LedgerDao extends DatabaseAccessor<AppDatabase> with _$LedgerDaoMixin {
   }) {
     return transaction(() async {
       final insertSerial = afterSerial + 1;
-      await (update(ledgerEntries)
-            ..where(
-              (t) => t.companyId.equals(companyId) &
-                  t.serialNumber.isBiggerOrEqualValue(insertSerial),
-            ))
+      await (update(ledgerEntries)..where(
+            (t) =>
+                t.companyId.equals(companyId) &
+                t.serialNumber.isBiggerOrEqualValue(insertSerial),
+          ))
           .write(
             LedgerEntriesCompanion.custom(
               serialNumber: ledgerEntries.serialNumber + const Constant(1),
@@ -54,7 +54,24 @@ class LedgerDao extends DatabaseAccessor<AppDatabase> with _$LedgerDaoMixin {
   }
 
   Future<void> deleteEntry(int id) {
-    return (delete(ledgerEntries)..where((t) => t.id.equals(id))).go();
+    return transaction(() async {
+      final entry = await (select(
+        ledgerEntries,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      if (entry == null) return;
+
+      await (delete(ledgerEntries)..where((t) => t.id.equals(id))).go();
+      await (update(ledgerEntries)..where(
+            (t) =>
+                t.companyId.equals(entry.companyId) &
+                t.serialNumber.isBiggerThanValue(entry.serialNumber),
+          ))
+          .write(
+            LedgerEntriesCompanion.custom(
+              serialNumber: ledgerEntries.serialNumber - const Constant(1),
+            ),
+          );
+    });
   }
 
   Future<List<LedgerEntry>> entriesForCompanyOnce(int companyId) {

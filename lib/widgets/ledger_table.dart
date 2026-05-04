@@ -12,7 +12,8 @@ import '../utils/text_direction_helper.dart';
 import 'editable_cell.dart';
 
 const int _flexParty = LedgerLayout.colPartyFlex;
-const int _flexNum = LedgerLayout.colValueFlex;
+const int _flexPending = LedgerLayout.colPendingFlex;
+const int _flexValue = LedgerLayout.colValueFlex;
 const int _flexSerial = LedgerLayout.colSerialFlex;
 const double _wAction = LedgerLayout.colActionFixed;
 
@@ -61,12 +62,14 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
     return SizedBox(
       height: LedgerLayout.tableHeaderHeight,
       child: Container(
-        color: AppColors.primaryLight,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: const BoxDecoration(
+          color: AppColors.primaryLight,
+          border: Border(left: BorderSide(color: AppColors.gridLine)),
+        ),
         child: Row(
           children: [
-            Expanded(
-              flex: _flexNum,
+            _LedgerCellFrame(
+              flex: _flexPending,
               child: const _StaticUrduHeaderText(
                 text: LedgerLayout.pendingHeaderText,
                 fontFamily: 'BombayBlackUnicode',
@@ -74,8 +77,8 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
               ),
             ),
-            Expanded(
-              flex: _flexNum,
+            _LedgerCellFrame(
+              flex: _flexValue,
               child: _HeaderField(
                 controller: _v1Label,
                 align: TextAlign.right,
@@ -85,8 +88,8 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 onChanged: settings.setValue1Label,
               ),
             ),
-            Expanded(
-              flex: _flexNum,
+            _LedgerCellFrame(
+              flex: _flexValue,
               child: _HeaderField(
                 controller: _v2Label,
                 align: TextAlign.right,
@@ -96,8 +99,8 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 onChanged: settings.setValue2Label,
               ),
             ),
-            Expanded(
-              flex: _flexNum,
+            _LedgerCellFrame(
+              flex: _flexValue,
               child: _HeaderField(
                 controller: _v3Label,
                 align: TextAlign.right,
@@ -107,7 +110,7 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 onChanged: settings.setValue3Label,
               ),
             ),
-            Expanded(
+            _LedgerCellFrame(
               flex: _flexParty,
               child: const _StaticUrduHeaderText(
                 text: LedgerLayout.partyHeaderText,
@@ -116,8 +119,8 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 contentPadding: EdgeInsets.fromLTRB(4, 0, 4, 4),
               ),
             ),
-            Expanded(
-              flex: _flexSerial.toInt(),
+            _LedgerCellFrame(
+              flex: _flexSerial,
               child: Text(
                 '    #',
                 style: TextStyle(
@@ -128,7 +131,7 @@ class _LedgerTableHeaderRowState extends State<LedgerTableHeaderRow> {
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: _wAction),
+            const _LedgerCellFrame(width: _wAction, child: SizedBox.shrink()),
           ],
         ),
       ),
@@ -215,6 +218,31 @@ class _StaticUrduHeaderText extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LedgerCellFrame extends StatelessWidget {
+  const _LedgerCellFrame({required this.child, this.flex, this.width});
+
+  final Widget child;
+  final int? flex;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    final cell = Container(
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppColors.gridLine),
+          right: BorderSide(color: AppColors.gridLine),
+          bottom: BorderSide(color: AppColors.gridLine),
+        ),
+      ),
+      child: child,
+    );
+    if (width != null) return SizedBox(width: width, child: cell);
+    return Expanded(flex: flex ?? 1, child: cell);
   }
 }
 
@@ -557,7 +585,7 @@ class _LedgerRowState extends State<_LedgerRow> {
     return RepaintBoundary(
       child: Container(
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.gridLine)),
+          border: Border(left: BorderSide(color: AppColors.gridLine)),
         ),
         child: Material(
           color: Colors.transparent,
@@ -571,8 +599,8 @@ class _LedgerRowState extends State<_LedgerRow> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(
-                    flex: _flexNum,
+                  _LedgerCellFrame(
+                    flex: _flexPending,
                     child: NumericLedgerField(
                       focusNode: _pendingFocus,
                       controller: _pending,
@@ -596,8 +624,8 @@ class _LedgerRowState extends State<_LedgerRow> {
                       onChanged: (_) => _schedulePersist(),
                     ),
                   ),
-                  Expanded(
-                    flex: _flexNum,
+                  _LedgerCellFrame(
+                    flex: _flexValue,
                     child: NumericLedgerField(
                       focusNode: _v1Focus,
                       controller: _v1,
@@ -605,8 +633,8 @@ class _LedgerRowState extends State<_LedgerRow> {
                       onChanged: (_) => _schedulePersist(),
                     ),
                   ),
-                  Expanded(
-                    flex: _flexNum,
+                  _LedgerCellFrame(
+                    flex: _flexValue,
                     child: NumericLedgerField(
                       focusNode: _v2Focus,
                       controller: _v2,
@@ -614,8 +642,8 @@ class _LedgerRowState extends State<_LedgerRow> {
                       onChanged: (_) => _schedulePersist(),
                     ),
                   ),
-                  Expanded(
-                    flex: _flexNum,
+                  _LedgerCellFrame(
+                    flex: _flexValue,
                     child: NumericLedgerField(
                       focusNode: _v3Focus,
                       controller: _v3,
@@ -623,7 +651,7 @@ class _LedgerRowState extends State<_LedgerRow> {
                       onChanged: (_) => _schedulePersist(),
                     ),
                   ),
-                  Expanded(
+                  _LedgerCellFrame(
                     flex: _flexParty,
                     child: ListenableBuilder(
                       listenable: _party,
@@ -661,7 +689,7 @@ class _LedgerRowState extends State<_LedgerRow> {
                       },
                     ),
                   ),
-                  Expanded(
+                  _LedgerCellFrame(
                     flex: _flexSerial,
                     child: Text(
                       '${widget.entry.serialNumber}',
@@ -673,7 +701,7 @@ class _LedgerRowState extends State<_LedgerRow> {
                       ),
                     ),
                   ),
-                  SizedBox(
+                  _LedgerCellFrame(
                     width: _wAction,
                     child: IconButton(
                       focusNode: _deleteFocus,

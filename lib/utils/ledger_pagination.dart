@@ -8,8 +8,14 @@ abstract final class LedgerPagination {
     if (entries.isEmpty) return [[]];
     final blocks = _blocks(entries);
     final pages = <List<LedgerEntry>>[];
-    for (final b in blocks) {
-      pages.addAll(LedgerLayout.paginate(b));
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      final isFinalBlock = i == blocks.length - 1;
+      pages.addAll(
+        isFinalBlock
+            ? LedgerLayout.paginate(block)
+            : LedgerLayout.paginateNonFinal(block),
+      );
     }
     return pages;
   }
@@ -18,8 +24,14 @@ abstract final class LedgerPagination {
     if (entries.isEmpty) return [[]];
     final blocks = _blocks(entries);
     final pages = <List<LedgerEntry>>[];
-    for (final b in blocks) {
-      pages.addAll(LedgerLayout.paginatePdf(b));
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      final isFinalBlock = i == blocks.length - 1;
+      pages.addAll(
+        isFinalBlock
+            ? LedgerLayout.paginatePdf(block)
+            : LedgerLayout.paginatePdfNonFinal(block),
+      );
     }
     return pages;
   }

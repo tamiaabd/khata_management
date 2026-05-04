@@ -3,6 +3,23 @@ import 'package:flutter/services.dart';
 
 import '../utils/constants.dart';
 
+class LedgerDecimalInputFormatter extends TextInputFormatter {
+  LedgerDecimalInputFormatter();
+
+  static final _validNumber = RegExp(r'^-?(?:\d+)?(?:\.\d*)?$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty || _validNumber.hasMatch(newValue.text)) {
+      return newValue;
+    }
+    return oldValue;
+  }
+}
+
 /// Compact numeric cell; keeps LTR for digits.
 class NumericLedgerField extends StatelessWidget {
   const NumericLedgerField({
@@ -28,10 +45,11 @@ class NumericLedgerField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onChanged: onChanged,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-      ],
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
+      inputFormatters: [LedgerDecimalInputFormatter()],
       textAlign: textAlign,
       textDirection: TextDirection.ltr,
       textInputAction: textInputAction,
